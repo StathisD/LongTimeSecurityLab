@@ -1,4 +1,4 @@
-package de.tu_darmstadt;
+package de.tu_darmstadt.Encoder;
 
 import java.math.BigInteger;
 import java.util.Arrays;

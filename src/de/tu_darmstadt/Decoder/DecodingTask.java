@@ -1,7 +1,6 @@
-package de.tu_darmstadt;
+package de.tu_darmstadt.Decoder;
 
 import java.math.BigInteger;
-import java.util.Arrays;
 import java.util.concurrent.Callable;
 
 /**
