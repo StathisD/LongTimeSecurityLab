@@ -5,8 +5,10 @@ import de.tu_darmstadt.Encryption.EncryptionTask;
 import javax.xml.bind.DatatypeConverter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.math.BigInteger;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,6 +21,11 @@ public class Main {
 
 
     public static void main(String[] args) {
+
+        BigInteger number = BigInteger.valueOf(2 ^ Constants.NBITS - 1);
+        while (number.compareTo(Constants.MODULUS) > 0) {
+            Constants.MODULUS = new BigInteger(Constants.MODLENGTH, 100000, new Random());
+        }
 
         Timestamp start = new Timestamp(System.currentTimeMillis());
 
