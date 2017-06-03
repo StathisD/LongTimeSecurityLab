@@ -1,15 +1,16 @@
 package de.tu_darmstadt;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.Scanner;
 
 /**
  * Created by stathis on 5/31/17.
  */
-public class DataProvider {
-
+public class DataReader {
 
     public static MappedByteBuffer readData(String path){
 
