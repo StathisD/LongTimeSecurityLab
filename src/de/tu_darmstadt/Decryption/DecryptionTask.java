@@ -3,9 +3,9 @@ package de.tu_darmstadt.Decryption;
 /**
  * Created by stathis on 6/4/17.
  */
+
 import de.tu_darmstadt.BigIntegerPolynomial;
 
-import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -39,11 +39,10 @@ public class DecryptionTask implements Runnable {
             }
 
             while (copied < contentLength) {
-
                 byte[][] buffer = new byte[SHAREHOLDERS][];
                 for (int j = 0; j < SHAREHOLDERS; j++) {
-                    if (contentLength - copied > MAX_BUFFER_SIZE) {
-                        buffer[j] = new byte[MAX_BUFFER_SIZE];
+                    if (contentLength - copied > SHARESIZE) {
+                        buffer[j] = new byte[SHARESIZE];
                     } else {
                         buffer[j] = new byte[(int) (contentLength - copied)];
                     }
@@ -66,7 +65,7 @@ public class DecryptionTask implements Runnable {
                         byte[] xValueBytes = new byte[1];
                         byte[] yValueBytes = new byte[MODSIZE];
                         xValueBytes[0] = oneNumber[j][0];
-                        System.arraycopy(oneNumber[j], 1, yValueBytes, 0, MODSIZE);
+                        System.arraycopy(oneNumber[j], 1, yValueBytes, 0, oneNumber[j].length - 1);
                         BigInteger xValue = new BigInteger(1, xValueBytes);
                         BigInteger yValue = new BigInteger(1, yValueBytes);
                         shares.put(xValue, yValue);
@@ -78,14 +77,12 @@ public class DecryptionTask implements Runnable {
 
                     System.arraycopy(decryptedBytes, 0, outBuffer, i * BLOCKSIZE, BLOCKSIZE);
 
-
                 }
-
                 targetFile.write(outBuffer);
 
                 copied += buffer[0].length;
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
