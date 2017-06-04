@@ -19,7 +19,7 @@ public class BigIntegerPolynomial {
         coefficients = new BigInteger[degree + 1];
         coefficients[0] = a0.mod(modulus);
         for (int i = 1; i <= degree; i++) {
-            BigInteger ai = (new BigInteger(Constants.MODLENGTH, new Random())).mod(modulus);
+            BigInteger ai = (new BigInteger(Parameters.MODLENGTH, new Random())).mod(modulus);
             coefficients[i] = ai;
         }
     }

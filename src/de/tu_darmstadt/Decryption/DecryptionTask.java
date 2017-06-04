@@ -2,96 +2,72 @@ package de.tu_darmstadt.Decryption;
 
 import de.tu_darmstadt.BigIntegerPolynomial;
 
+import javax.xml.bind.DatatypeConverter;
+import java.io.RandomAccessFile;
 import java.math.BigInteger;
-import java.util.Arrays;
-import java.util.concurrent.Callable;
+import java.util.TreeMap;
 
-import static de.tu_darmstadt.Constants.*;
+import static de.tu_darmstadt.Parameters.*;
 
 /**
  * Created by stathis on 5/31/17.
  */
-public class DecryptionTask implements Callable<byte[][]> {
-    private byte[] data;
+public class DecryptionTask implements Runnable {
+    private int offset;
+    private RandomAccessFile[] ins;
+    private RandomAccessFile out;
 
-    public DecryptionTask(byte[] data) {
-        this.data = data;
-
+    public DecryptionTask(int offset, RandomAccessFile[] ins, RandomAccessFile out) {
+        this.offset = offset;
+        this.ins = ins;
+        this.out = out;
     }
 
-    private static byte[] fixLength(byte[] data) {
-
-        byte[] newData = new byte[MODSIZE];
-        //add Padding if needed
-        if (data.length < MODSIZE) {
-            System.arraycopy(data, 0, newData, (newData.length - data.length), data.length);
-        } else if (data.length > MODSIZE) {
-            System.arraycopy(data, 1, newData, 0, MODSIZE);
-        } else {
-            newData = data;
-        }
-        return newData;
-    }
-
-    public byte[][] call() {
-        int encodedSize = (int) Math.ceil(data.length * 1.0 / BLOCKSIZE);
-        byte[][] encryptedData = new byte[SHAREHOLDERS][encodedSize * SHARESIZE];
-        byte[] oneNumber;
+    public void run() {
         try {
-            for (int i = 0; i < encodedSize; i++) {
-                if ((i + 1) * BLOCKSIZE <= data.length) {
-                    oneNumber = Arrays.copyOfRange(data, i * BLOCKSIZE, (i + 1) * BLOCKSIZE);
-                } else {
-                    oneNumber = Arrays.copyOfRange(data, i * BLOCKSIZE, data.length);
+            int nGet;
+            RandomAccessFile test = new RandomAccessFile("/media/stathis/9AEA2384EA235BAF/testFile", "r");
+
+            while (ins[0].getFilePointer() < ins[0].length()) {
+
+                nGet = (int) Math.min(SHARESIZE, ins[0].length() - ins[0].getFilePointer());
+
+                TreeMap<BigInteger, BigInteger> shares = new TreeMap<>();
+                for (int j = 0; j < SHAREHOLDERS; j++) {
+                    final byte[] byteArray = new byte[nGet];
+                    ins[j].readFully(byteArray);
+                    byte[] xValueBytes = new byte[1];
+                    byte[] yValueBytes = new byte[MODSIZE];
+                    xValueBytes[0] = byteArray[0];
+                    System.arraycopy(byteArray, 1, yValueBytes, 0, MODSIZE);
+                    BigInteger xValue = new BigInteger(1, xValueBytes);
+                    BigInteger yValue = new BigInteger(1, yValueBytes);
+                    shares.put(xValue, yValue);
                 }
-
-                BigInteger number = new BigInteger(1, oneNumber);
-
-                //encrypt
-                BigIntegerPolynomial polynomial = new BigIntegerPolynomial(SHAREHOLDERS - 1, MODULUS, number);
-
-                byte[] byteShare;
-
-                for (int x = 1; x <= SHAREHOLDERS; x++) {
-                    BigInteger xValue = BigInteger.valueOf(x);
-                    BigInteger yValue = polynomial.evaluate(xValue);
-                    byte[] xValueBytes = xValue.toByteArray();
-                    byte[] yValueBytes = fixLength(yValue.toByteArray());
-                    byteShare = concat(xValueBytes, yValueBytes);
-                    //System.out.println(DatatypeConverter.printHexBinary(byteShare));
-                    System.arraycopy(byteShare, 0, encryptedData[(x - 1)], i * SHARESIZE, byteShare.length);
-                }
+                //System.out.println(shares);
+                byte[] testByte = new byte[BLOCKSIZE];
+                test.readFully(testByte);
+                BigInteger number = new BigInteger(1, testByte);
 
 
-                /*
                 //decrypt
-                BigInteger encryptedNumber = number;//BigIntegerPolynomial.interpolate(shares,SHAREHOLDERS, BigInteger.ZERO, MODULUS);
+                BigInteger decryptedNumber = BigIntegerPolynomial.interpolate(shares, SHAREHOLDERS, BigInteger.ZERO, MODULUS);
+                byte[] decryptedBytes = decryptedNumber.toByteArray();
+                decryptedBytes = fixLength(decryptedBytes, BLOCKSIZE);
 
-                byte[] encNumber = encryptedNumber.toByteArray();
+                //out.write(decryptedBytes);
+                System.out.println(DatatypeConverter.printHexBinary(decryptedBytes));
 
-                if (!Arrays.equals(oneNumber, encNumber)) {
-
-                    System.out.println(number);
-                    System.out.println(encryptedNumber);
-
-                    System.out.println("Dec: " + DatatypeConverter.printHexBinary(oneNumber));
-                    System.out.println("Enc: " + DatatypeConverter.printHexBinary(encNumber));
-                    break;
-                }*/
+                System.out.println(DatatypeConverter.printHexBinary(testByte));
+                break;
 
 
             }
-            /*for (int j = 0; j < SHAREHOLDERS; j++) {
-                System.out.println(DatatypeConverter.printHexBinary(encryptedData[j]));
-            }*/
+
         } catch (Exception e) {
             e.printStackTrace();
         }
-
-        return encryptedData;
     }
-
-
 }
 
 
