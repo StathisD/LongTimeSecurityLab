@@ -9,17 +9,18 @@ import java.util.TreeMap;
  * Created by stathis on 6/3/17.
  */
 public class BigIntegerPolynomial {
-    public TreeMap<BigInteger, BigInteger> coefficients = new TreeMap<>();
+    private BigInteger[] coefficients;
     private int degree;
     private BigInteger modulus;
 
     public BigIntegerPolynomial(int degree, BigInteger modulus, BigInteger a0) {
         this.degree = degree;
         this.modulus = modulus;
-        coefficients.put(BigInteger.ZERO, a0.mod(modulus));
+        coefficients = new BigInteger[degree + 1];
+        coefficients[0] = a0.mod(modulus);
         for (int i = 1; i <= degree; i++) {
             BigInteger ai = (new BigInteger(Constants.MODLENGTH, new Random())).mod(modulus);
-            coefficients.put(BigInteger.valueOf(i), ai);
+            coefficients[i] = ai;
         }
     }
 
@@ -50,9 +51,9 @@ public class BigIntegerPolynomial {
 
     public BigInteger evaluate(BigInteger value) {
         BigInteger result = BigInteger.ZERO;
-        for (Map.Entry<BigInteger, BigInteger> entry : coefficients.entrySet()) {
-            BigInteger index = entry.getKey();
-            BigInteger coefficient = entry.getValue();
+        for (int i = 0; i < coefficients.length; i++) {
+            BigInteger index = BigInteger.valueOf(i);
+            BigInteger coefficient = coefficients[i];
             result = result.add(coefficient.multiply(value.modPow(index, modulus)).mod(modulus)).mod(modulus);
         }
         return result;

@@ -1,4 +1,4 @@
-package de.tu_darmstadt.Encryption;
+package de.tu_darmstadt.Decryption;
 
 import de.tu_darmstadt.BigIntegerPolynomial;
 
@@ -11,10 +11,10 @@ import static de.tu_darmstadt.Constants.*;
 /**
  * Created by stathis on 5/31/17.
  */
-public class EncryptionTask implements Callable<byte[][]> {
+public class DecryptionTask implements Callable<byte[][]> {
     private byte[] data;
 
-    public EncryptionTask(byte[] data) {
+    public DecryptionTask(byte[] data) {
         this.data = data;
 
     }
