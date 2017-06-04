@@ -1,73 +1,92 @@
 package de.tu_darmstadt.Decryption;
 
+/**
+ * Created by stathis on 6/4/17.
+ */
 import de.tu_darmstadt.BigIntegerPolynomial;
 
-import javax.xml.bind.DatatypeConverter;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.TreeMap;
 
 import static de.tu_darmstadt.Parameters.*;
 
-/**
- * Created by stathis on 5/31/17.
- */
-public class DecryptionTask implements Runnable {
-    private int offset;
-    private RandomAccessFile[] ins;
-    private RandomAccessFile out;
 
-    public DecryptionTask(int offset, RandomAccessFile[] ins, RandomAccessFile out) {
-        this.offset = offset;
-        this.ins = ins;
-        this.out = out;
+public class DecryptionTask implements Runnable {
+
+    private long startingByte;
+    private long endingByte;
+
+    public DecryptionTask(long startingByte, long endingByte) {
+        this.startingByte = startingByte;
+        this.endingByte = endingByte;
     }
 
+    @Override
     public void run() {
         try {
-            int nGet;
-            RandomAccessFile test = new RandomAccessFile("/media/stathis/9AEA2384EA235BAF/testFile", "r");
+            RandomAccessFile[] sourceFiles = new RandomAccessFile[SHAREHOLDERS];
+            RandomAccessFile targetFile = new RandomAccessFile(FILEPATH + "_dec", "rw");
+            long copied = 0;
+            long contentLength = endingByte - startingByte;
 
-            while (ins[0].getFilePointer() < ins[0].length()) {
-
-                nGet = (int) Math.min(SHARESIZE, ins[0].length() - ins[0].getFilePointer());
-
-                TreeMap<BigInteger, BigInteger> shares = new TreeMap<>();
-                for (int j = 0; j < SHAREHOLDERS; j++) {
-                    final byte[] byteArray = new byte[nGet];
-                    ins[j].readFully(byteArray);
-                    byte[] xValueBytes = new byte[1];
-                    byte[] yValueBytes = new byte[MODSIZE];
-                    xValueBytes[0] = byteArray[0];
-                    System.arraycopy(byteArray, 1, yValueBytes, 0, MODSIZE);
-                    BigInteger xValue = new BigInteger(1, xValueBytes);
-                    BigInteger yValue = new BigInteger(1, yValueBytes);
-                    shares.put(xValue, yValue);
-                }
-                //System.out.println(shares);
-                byte[] testByte = new byte[BLOCKSIZE];
-                test.readFully(testByte);
-                BigInteger number = new BigInteger(1, testByte);
-
-
-                //decrypt
-                BigInteger decryptedNumber = BigIntegerPolynomial.interpolate(shares, SHAREHOLDERS, BigInteger.ZERO, MODULUS);
-                byte[] decryptedBytes = decryptedNumber.toByteArray();
-                decryptedBytes = fixLength(decryptedBytes, BLOCKSIZE);
-
-                //out.write(decryptedBytes);
-                System.out.println(DatatypeConverter.printHexBinary(decryptedBytes));
-
-                System.out.println(DatatypeConverter.printHexBinary(testByte));
-                break;
-
-
+            targetFile.seek(startingByte);
+            for (int j = 0; j < SHAREHOLDERS; j++) {
+                sourceFiles[j] = new RandomAccessFile(FILEPATH + j, "r");
+                sourceFiles[j].seek(startingByte + 18 + MODSIZE);
             }
 
-        } catch (Exception e) {
+            while (copied < contentLength) {
+
+                byte[][] buffer = new byte[SHAREHOLDERS][];
+                for (int j = 0; j < SHAREHOLDERS; j++) {
+                    if (contentLength - copied > MAX_BUFFER_SIZE) {
+                        buffer[j] = new byte[MAX_BUFFER_SIZE];
+                    } else {
+                        buffer[j] = new byte[(int) (contentLength - copied)];
+                    }
+                    sourceFiles[j].readFully(buffer[j]);
+                }
+
+                int encodedSize = (int) Math.ceil(buffer[0].length * 1.0 / SHARESIZE);
+                byte[][] oneNumber = new byte[SHAREHOLDERS][];
+                byte[] outBuffer = new byte[encodedSize * BLOCKSIZE];
+
+                for (int i = 0; i < encodedSize; i++) {
+                    TreeMap<BigInteger, BigInteger> shares = new TreeMap<>();
+                    for (int j = 0; j < SHAREHOLDERS; j++) {
+                        if ((i + 1) * SHARESIZE <= buffer[j].length) {
+                            oneNumber[j] = Arrays.copyOfRange(buffer[j], i * SHARESIZE, (i + 1) * SHARESIZE);
+                        } else {
+                            oneNumber[j] = Arrays.copyOfRange(buffer[j], i * SHARESIZE, buffer[0].length);
+                        }
+
+                        byte[] xValueBytes = new byte[1];
+                        byte[] yValueBytes = new byte[MODSIZE];
+                        xValueBytes[0] = oneNumber[j][0];
+                        System.arraycopy(oneNumber[j], 1, yValueBytes, 0, MODSIZE);
+                        BigInteger xValue = new BigInteger(1, xValueBytes);
+                        BigInteger yValue = new BigInteger(1, yValueBytes);
+                        shares.put(xValue, yValue);
+                    }
+                    //decrypt
+                    BigInteger decryptedNumber = BigIntegerPolynomial.interpolate(shares, SHAREHOLDERS, BigInteger.ZERO, MODULUS);
+                    byte[] decryptedBytes = decryptedNumber.toByteArray();
+                    decryptedBytes = fixLength(decryptedBytes, BLOCKSIZE);
+
+                    System.arraycopy(decryptedBytes, 0, outBuffer, i * BLOCKSIZE, BLOCKSIZE);
+
+
+                }
+
+                targetFile.write(outBuffer);
+
+                copied += buffer[0].length;
+            }
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
 }
-
-

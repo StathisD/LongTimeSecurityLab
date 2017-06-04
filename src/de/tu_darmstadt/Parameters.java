@@ -8,6 +8,7 @@ import java.util.Random;
  * Created by stathis on 6/3/17.
  */
 public final class Parameters {
+    public static final int MAX_BUFFER_SIZE = 1024 * 1024 * 5;
     // Encryption Parameters
     public static short SHAREHOLDERS = 5;
     public static short NBITS = 512; // in bits, must be power of 2
@@ -16,11 +17,11 @@ public final class Parameters {
     public static int MODSIZE = MODLENGTH / 8; // in Bytes
     public static int SHARESIZE = (MODSIZE + 1); // in Bytes
     public static BigInteger MODULUS = new BigInteger(MODLENGTH, 100000, new Random());
-
     // Read/Write Parameters
     public static short NTHREADS = 8;
-    public static int SIZE = 1024 * 1024 * 60;
+    public static int CHUNKOFFILE = 1024 * 1024 * 1024;
     public static long FILESIZE;
+    public static String FILEPATH;
 
     public static byte[] concat(byte[] first, byte[] second) {
         byte[] result = Arrays.copyOf(first, first.length + second.length);
@@ -36,7 +37,7 @@ public final class Parameters {
         Parameters.MODSIZE = Parameters.MODLENGTH / 8;
         Parameters.SHARESIZE = Parameters.MODSIZE + 1;
         Parameters.NTHREADS = NTHREADS;
-        Parameters.SIZE = SIZE;
+        Parameters.CHUNKOFFILE = SIZE;
         Parameters.FILESIZE = FILESIZE;
     }
 

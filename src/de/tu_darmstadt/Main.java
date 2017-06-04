@@ -1,9 +1,7 @@
 package de.tu_darmstadt;
 
-import de.tu_darmstadt.Decryption.DecryptionTask;
 import de.tu_darmstadt.Encryption.EncryptionTask;
 
-import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.sql.Timestamp;
@@ -20,6 +18,7 @@ public class Main {
 
 
     public static void main(String[] args) {
+        FILEPATH = args[0];
         byte[] bytes = new byte[NBITS / 8];
         Arrays.fill(bytes, (byte) 0xff);
         BigInteger number = new BigInteger(1, bytes);
@@ -29,19 +28,13 @@ public class Main {
 
         Timestamp start = new Timestamp(System.currentTimeMillis());
 
-        //encrypt(args[0]);
-
-        String[] paths = new String[SHAREHOLDERS];
-        for (int j = 0; j < SHAREHOLDERS; j++) {
-            paths[j] = "/media/stathis/9AEA2384EA235BAF/testFile" +j;
-        }
-        decrypt(paths);
+        dec();
 
         Timestamp end = new Timestamp(System.currentTimeMillis());
         System.out.println(end.getTime() - start.getTime());
 
     }
-
+/*
     public static void encrypt(String path) {
 
 
@@ -56,7 +49,7 @@ public class Main {
                 outs[j] = new RandomAccessFile("/media/stathis/9AEA2384EA235BAF/testFile" + j, "rw");
                 outs[j].seek(0L);
                 outs[j].writeLong(FILESIZE);
-                outs[j].writeInt(SIZE);
+                outs[j].writeInt(CHUNKOFFILE);
                 outs[j].writeShort(NTHREADS);
                 outs[j].writeShort(NBITS);
                 outs[j].writeShort(SHAREHOLDERS);
@@ -65,7 +58,7 @@ public class Main {
 
             int nGet;
             while (in.getFilePointer() < in.length()) {
-                nGet = (int) Math.min(SIZE, in.length() - in.getFilePointer());
+                nGet = (int) Math.min(CHUNKOFFILE, in.length() - in.getFilePointer());
                 final byte[] byteArray = new byte[nGet];
                 in.readFully(byteArray);
                 int chunkSize = nGet / NTHREADS;
@@ -133,7 +126,6 @@ public class Main {
             //pool.awaitTermination(60, TimeUnit.SECONDS);
 
 
-                /*
                 int nGet;
                 while (ins[j].getFilePointer() < ins[j].length()) {
 
@@ -157,7 +149,7 @@ public class Main {
                             pool.submit(task);
                         }
                     }
-                    /*
+
                     //int size = (int) Math.ceil(nGet * 1.0 / (NBITS/8))*SHARESIZE*NCHUNKS;
                     //byte[][] encryptedData = new byte[SHAREHOLDERS][size];
                     int pos = 0;
@@ -173,12 +165,104 @@ public class Main {
                     }
                     for (int j = 0; j < SHAREHOLDERS; j++) {
                         outs[j].write(encryptedData[j]);
-                    }*/
+                    }
 
         } catch (IOException ioe) {
             System.out.println("Exception while reading file " + ioe);
         } finally {
             pool.shutdown();
         }
+    }
+
+
+ */
+
+    public static void enc() {
+        try {
+            RandomAccessFile in = new RandomAccessFile(FILEPATH, "r");
+            in.seek(0L);
+            FILESIZE = in.length();
+
+            RandomAccessFile[] outs = new RandomAccessFile[SHAREHOLDERS];
+            for (int j = 0; j < SHAREHOLDERS; j++) {
+                outs[j] = new RandomAccessFile(FILEPATH + j, "rw");
+                outs[j].seek(0L);
+                outs[j].writeLong(FILESIZE);
+                outs[j].writeInt(CHUNKOFFILE);
+                outs[j].writeShort(NTHREADS);
+                outs[j].writeShort(NBITS);
+                outs[j].writeShort(SHAREHOLDERS);
+                outs[j].write(fixLength(MODULUS.toByteArray(), MODSIZE));
+            }
+            ExecutorService pool = Executors.newFixedThreadPool(NTHREADS);
+
+            int chunkSize = (int) Math.min(CHUNKOFFILE, FILESIZE) / NTHREADS;
+
+            long copyStartingByte = 0;
+            long copyEndingByte = chunkSize;
+
+            while (FILESIZE > copyStartingByte) {
+                EncryptionTask task = new EncryptionTask(copyStartingByte, copyEndingByte);
+                pool.submit(task);
+                copyStartingByte = copyEndingByte;
+                if (copyEndingByte + chunkSize <= FILESIZE)
+                    copyEndingByte = copyEndingByte + chunkSize;
+                else
+                    copyEndingByte = FILESIZE;
+            }
+            pool.shutdown();
+            pool.awaitTermination(60, TimeUnit.SECONDS);
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+    }
+
+    public static void dec() {
+        try {
+
+            RandomAccessFile out = new RandomAccessFile(FILEPATH + "_dec", "rw");
+            RandomAccessFile[] ins = new RandomAccessFile[SHAREHOLDERS];
+
+            int j = 0;
+            ins[j] = new RandomAccessFile(FILEPATH + j, "r");
+
+            ins[j].seek(0L);
+            long fileSize = ins[j].readLong();
+            int size = ins[j].readInt();
+            short nthreads = ins[j].readShort();
+            short nbits = ins[j].readShort();
+            short shareholders = ins[j].readShort();
+            initializeParameters(shareholders, nbits, nthreads, size, fileSize);
+            byte[] bytes = new byte[MODSIZE];
+            ins[j].readFully(bytes);
+            BigInteger modulus = new BigInteger(1, bytes);
+            setMODULUS(modulus);
+
+
+            ExecutorService pool = Executors.newFixedThreadPool(NTHREADS);
+
+            int chunkSize = (int) Math.min(CHUNKOFFILE, FILESIZE) / NTHREADS;
+
+            long copyStartingByte = 0;
+            long copyEndingByte = chunkSize;
+
+            while (FILESIZE > copyStartingByte) {
+                EncryptionTask task = new EncryptionTask(copyStartingByte, copyEndingByte);
+                pool.submit(task);
+                copyStartingByte = copyEndingByte;
+                if (copyEndingByte + chunkSize <= FILESIZE)
+                    copyEndingByte = copyEndingByte + chunkSize;
+                else
+                    copyEndingByte = FILESIZE;
+            }
+            pool.shutdown();
+            pool.awaitTermination(60, TimeUnit.SECONDS);
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
     }
 }
