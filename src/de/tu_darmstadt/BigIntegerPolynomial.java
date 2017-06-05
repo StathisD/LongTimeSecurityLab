@@ -1,9 +1,7 @@
 package de.tu_darmstadt;
 
 import java.math.BigInteger;
-import java.util.Map;
 import java.util.Random;
-import java.util.TreeMap;
 
 /**
  * Created by stathis on 6/3/17.
@@ -24,17 +22,18 @@ public class BigIntegerPolynomial {
         }
     }
 
-    public static BigInteger interpolate(TreeMap<BigInteger, BigInteger> points, int neededPoints, BigInteger position, BigInteger modulus) {
-        if (points.size() < neededPoints) {
+    public static BigInteger interpolate(BigInteger[][] points, int neededPoints, BigInteger position, BigInteger modulus) {
+        if (points.length < neededPoints) {
             // no interpolation possible
             return BigInteger.valueOf(-1);
         } else {
             BigInteger result = BigInteger.ZERO;
-            for (Map.Entry<BigInteger, BigInteger> entry : points.entrySet()) {
-                BigInteger xj = entry.getKey();
-                BigInteger yj = entry.getValue();
+            for (int i = 0; i < points.length; i++) {
+                BigInteger xj = points[i][0];
+                BigInteger yj = points[i][1];
                 BigInteger lj = BigInteger.ONE;
-                for (BigInteger x : points.keySet()) {
+                for (int j = 0; j < points.length; j++) {
+                    BigInteger x = points[j][0];
                     if (!xj.equals(x)) {
                         BigInteger nominator = position.subtract(x);
                         BigInteger denominator = xj.subtract(x);
@@ -42,7 +41,6 @@ public class BigIntegerPolynomial {
                         lj = lj.multiply(product).mod(modulus);
                     }
                 }
-                //System.out.println(lj);
                 result = result.add(yj.multiply(lj)).mod(modulus);
             }
             return result;

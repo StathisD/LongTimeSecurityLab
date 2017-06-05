@@ -6,8 +6,6 @@ import de.tu_darmstadt.Encryption.EncryptionTask;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.sql.Timestamp;
-import java.util.Arrays;
-import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -20,15 +18,11 @@ public class Main {
 
     public static void main(String[] args) {
         FILEPATH = args[0];
-        byte[] bytes = new byte[NBITS / 8];
-        Arrays.fill(bytes, (byte) 0xff);
-        BigInteger number = new BigInteger(1, bytes);
-        while (number.compareTo(MODULUS) > 0) {
-            MODULUS = new BigInteger(MODLENGTH, 100000, new Random());
-        }
+
 
         Timestamp start = new Timestamp(System.currentTimeMillis());
 
+        //enc();
         dec();
 
         Timestamp end = new Timestamp(System.currentTimeMillis());
@@ -40,37 +34,61 @@ public class Main {
         try {
             RandomAccessFile in = new RandomAccessFile(FILEPATH, "r");
             in.seek(0L);
-            FILESIZE = in.length();
+            long targetFileSize = in.length();
+
+            initializeParameters((short) 5, (short) 512, (short) 8, 12, 1024 * 1024 * 1024, targetFileSize, 0);
 
             RandomAccessFile[] outs = new RandomAccessFile[SHAREHOLDERS];
             for (int j = 0; j < SHAREHOLDERS; j++) {
                 outs[j] = new RandomAccessFile(FILEPATH + j, "rw");
                 outs[j].seek(0L);
-                outs[j].writeLong(FILESIZE);
-                outs[j].writeInt(CHUNKOFFILE);
-                outs[j].writeShort(NTHREADS);
+                outs[j].writeLong(TARGET_FILE_SIZE);
                 outs[j].writeShort(NBITS);
                 outs[j].writeShort(SHAREHOLDERS);
                 outs[j].write(fixLength(MODULUS.toByteArray(), MODSIZE));
             }
             ExecutorService pool = Executors.newFixedThreadPool(NTHREADS);
 
-            int chunkSize = (int) Math.min(CHUNKOFFILE, FILESIZE) / NTHREADS;
+            long sourceStartingByte = 0;
+            long sourceEndingByte = 0;
+            long destStartingByte = HEADER_LENGTH;
+            long destEndingByte = HEADER_LENGTH;
 
-            long copyStartingByte = 0;
-            long copyEndingByte = chunkSize;
+            int x = TARGET_CHUNK_SIZE / BLOCKSIZE;
+            SHARES_CHUNK_SIZE = SHARESIZE * x;
 
-            while (FILESIZE > copyStartingByte) {
-                EncryptionTask task = new EncryptionTask(copyStartingByte, copyEndingByte);
+            System.out.println(TARGET_CHUNK_SIZE % BLOCKSIZE);
+            System.out.println(SHARES_CHUNK_SIZE % SHARESIZE);
+
+            while (TARGET_FILE_SIZE > sourceStartingByte) {
+
+                if (sourceEndingByte + TARGET_CHUNK_SIZE <= TARGET_FILE_SIZE) {
+                    sourceEndingByte = sourceEndingByte + TARGET_CHUNK_SIZE;
+
+                } else {
+                    sourceEndingByte = TARGET_FILE_SIZE;
+                }
+                destEndingByte = destEndingByte + SHARES_CHUNK_SIZE;
+
+
+                System.out.println("Starting Encryption Task with source: " + sourceStartingByte + " to " + sourceEndingByte);
+                System.out.println("Starting Encryption Task with dest: " + destStartingByte + " to " + destEndingByte);
+                System.out.println();
+
+                EncryptionTask task = new EncryptionTask(sourceStartingByte, sourceEndingByte, destStartingByte, destEndingByte);
                 pool.submit(task);
-                copyStartingByte = copyEndingByte;
-                if (copyEndingByte + chunkSize <= FILESIZE)
-                    copyEndingByte = copyEndingByte + chunkSize;
-                else
-                    copyEndingByte = FILESIZE;
+
+                sourceStartingByte = sourceEndingByte;
+                destStartingByte = destEndingByte;
+
             }
+
             pool.shutdown();
             pool.awaitTermination(60, TimeUnit.SECONDS);
+            if (outs[0].length() != SHARES_FILE_SIZE + HEADER_LENGTH) {
+                System.out.println("ERROR");
+                System.out.println(SHARES_FILE_SIZE + HEADER_LENGTH - outs[0].length());
+            }
 
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -81,18 +99,15 @@ public class Main {
     public static void dec() {
         try {
 
-            RandomAccessFile[] ins = new RandomAccessFile[SHAREHOLDERS];
+            RandomAccessFile[] ins = new RandomAccessFile[5];
 
             int j = 0;
             ins[j] = new RandomAccessFile(FILEPATH + j, "r");
-
             ins[j].seek(0L);
-            long fileSize = ins[j].readLong();
-            int size = ins[j].readInt();
-            short nthreads = ins[j].readShort();
+            long targetFileSize = ins[j].readLong();
             short nbits = ins[j].readShort();
             short shareholders = ins[j].readShort();
-            initializeParameters(shareholders, nbits, nthreads, size, fileSize);
+            initializeParameters(shareholders, nbits, (short) 8, 12, 1024 * 1024 * 1024, targetFileSize, 1);
             byte[] bytes = new byte[MODSIZE];
             ins[j].readFully(bytes);
             BigInteger modulus = new BigInteger(1, bytes);
@@ -101,169 +116,47 @@ public class Main {
 
             ExecutorService pool = Executors.newFixedThreadPool(NTHREADS);
 
-            int chunkSize = (int) Math.min(CHUNKOFFILE, FILESIZE) / NTHREADS;
+            long sourceStartingByte = HEADER_LENGTH;
+            long sourceEndingByte = HEADER_LENGTH;
+            long destStartingByte = 0;
+            long destEndingByte = 0;
 
-            long copyStartingByte = 0;
-            long copyEndingByte = chunkSize;
+            int x = SHARES_CHUNK_SIZE / BLOCKSIZE;
+            TARGET_CHUNK_SIZE = BLOCKSIZE * x;
 
-            while (FILESIZE > copyStartingByte) {
-                DecryptionTask task = new DecryptionTask(copyStartingByte, copyEndingByte);
+            System.out.println(SHARES_FILE_SIZE % SHARES_CHUNK_SIZE);
+
+
+            while (SHARES_FILE_SIZE > sourceStartingByte) {
+
+                if (sourceEndingByte + SHARES_CHUNK_SIZE <= SHARES_FILE_SIZE) {
+                    sourceEndingByte = sourceEndingByte + SHARES_CHUNK_SIZE;
+
+                } else {
+                    sourceEndingByte = SHARES_FILE_SIZE;
+                }
+
+                destEndingByte = destEndingByte + TARGET_CHUNK_SIZE;
+
+
+                System.out.println("Starting Decryption Task with source: " + sourceStartingByte + " to " + sourceEndingByte);
+                //System.out.println("Starting Decryption Task with dest: " + destStartingByte +" to " + destEndingByte);
+
+                show((sourceEndingByte - sourceStartingByte));
+                System.out.println();
+                DecryptionTask task = new DecryptionTask(sourceStartingByte, sourceEndingByte, destStartingByte, destEndingByte);
                 pool.submit(task);
-                copyStartingByte = copyEndingByte;
-                if (copyEndingByte + chunkSize <= FILESIZE)
-                    copyEndingByte = copyEndingByte + chunkSize;
-                else
-                    copyEndingByte = FILESIZE;
+
+                sourceStartingByte = sourceEndingByte;
+                destStartingByte = destEndingByte;
+
             }
             pool.shutdown();
-            pool.awaitTermination(60 * 5, TimeUnit.SECONDS);
+            pool.awaitTermination(60 * 15, TimeUnit.SECONDS);
 
         } catch (Exception ex) {
             ex.printStackTrace();
         }
 
     }
-
-    /*
-    public static void encrypt(String path) {
-
-
-        ExecutorService pool = Executors.newFixedThreadPool(NTHREADS);
-        try {
-            RandomAccessFile in = new RandomAccessFile(path, "r");
-            in.seek(0L);
-            FILESIZE = in.length();
-
-            RandomAccessFile[] outs = new RandomAccessFile[SHAREHOLDERS];
-            for (int j = 0; j < SHAREHOLDERS; j++) {
-                outs[j] = new RandomAccessFile("/media/stathis/9AEA2384EA235BAF/testFile" + j, "rw");
-                outs[j].seek(0L);
-                outs[j].writeLong(FILESIZE);
-                outs[j].writeInt(CHUNKOFFILE);
-                outs[j].writeShort(NTHREADS);
-                outs[j].writeShort(NBITS);
-                outs[j].writeShort(SHAREHOLDERS);
-                outs[j].write(fixLength(MODULUS.toByteArray(), MODSIZE));
-            }
-
-            int nGet;
-            while (in.getFilePointer() < in.length()) {
-                nGet = (int) Math.min(CHUNKOFFILE, in.length() - in.getFilePointer());
-                final byte[] byteArray = new byte[nGet];
-                in.readFully(byteArray);
-                int chunkSize = nGet / NTHREADS;
-                int remain = nGet % NTHREADS;
-
-                // process byteArray
-                for (int i = 0; i < NTHREADS; i++) {
-                    if (nGet < (i + 1) * chunkSize) {
-                        byte[] chunk = new byte[remain];
-                        System.arraycopy(byteArray, i * chunkSize, chunk, 0, remain);
-                        EncryptionTask task = new EncryptionTask(chunk, i, outs);
-                        pool.submit(task);
-
-                    } else {
-                        byte[] chunk = new byte[chunkSize];
-                        System.arraycopy(byteArray, i * chunkSize, chunk, 0, chunkSize);
-                        EncryptionTask task = new EncryptionTask(chunk, i, outs);
-                        pool.submit(task);
-                    }
-                }
-            }
-            pool.shutdown();
-            pool.awaitTermination(60, TimeUnit.SECONDS);
-
-
-        } catch (InterruptedException ex) {
-            ex.printStackTrace();
-
-        } catch (IOException ioe) {
-            System.out.println("Exception while reading file " + ioe);
-        }
-    }
-
-    public static void decrypt(String[] paths) {
-
-
-        ExecutorService pool = Executors.newFixedThreadPool(1);
-        try {
-            RandomAccessFile out = new RandomAccessFile("/media/stathis/9AEA2384EA235BAF/testFile_dec", "rw");
-            RandomAccessFile[] ins = new RandomAccessFile[SHAREHOLDERS];
-            for (int j = 0; j < paths.length; j++) {
-                ins[j] = new RandomAccessFile(paths[j], "r");
-
-                if (j == 0) {
-                    ins[j].seek(0L);
-                    long fileSize = ins[j].readLong();
-                    int size = ins[j].readInt();
-                    short nthreads = ins[j].readShort();
-                    short nbits = ins[j].readShort();
-                    short shareholders = ins[j].readShort();
-                    initializeParameters(shareholders, nbits, nthreads, size, fileSize);
-                    byte[] bytes = new byte[MODSIZE];
-                    ins[j].readFully(bytes);
-                    BigInteger modulus = new BigInteger(1, bytes);
-                    setMODULUS(modulus);
-                } else {
-                    ins[j].seek(ins[0].getFilePointer());
-                }
-            }
-            for (int i = 0; i < 1; i++) {
-                DecryptionTask task = new DecryptionTask(i, ins, out);
-                pool.submit(task);
-            }
-            pool.shutdown();
-            //pool.awaitTermination(60, TimeUnit.SECONDS);
-
-
-                int nGet;
-                while (ins[j].getFilePointer() < ins[j].length()) {
-
-                    nGet = (int) Math.min(SIZE, ins[j].length() - ins[j].getFilePointer());
-                    final byte[] byteArray = new byte[nGet];
-                    ins[j].readFully(byteArray);
-                    int chunkSize = nGet / NTHREADS;
-                    int remain = nGet % NTHREADS;
-                    // process byteArray
-                    for (int i = 0; i < NTHREADS; i++) {
-                        if (nGet < (i + 1) * chunkSize) {
-                            byte[] chunk = new byte[remain];
-                            System.arraycopy(byteArray, i * chunkSize, chunk, 0, remain);
-                            DecryptionTask task = new DecryptionTask(chunk);
-                            pool.submit(task);
-
-                        } else {
-                            byte[] chunk = new byte[chunkSize];
-                            System.arraycopy(byteArray, i * chunkSize, chunk, 0, chunkSize);
-                            DecryptionTask task = new DecryptionTask(chunk);
-                            pool.submit(task);
-                        }
-                    }
-
-                    //int size = (int) Math.ceil(nGet * 1.0 / (NBITS/8))*SHARESIZE*NCHUNKS;
-                    //byte[][] encryptedData = new byte[SHAREHOLDERS][size];
-                    int pos = 0;
-                    for (int i = 0; i < NTHREADS; i++) {
-                        byte[][] returnValue = futures[i].get();
-                        //System.out.println("Enc: " + DatatypeConverter.printHexBinary(returnValue[1]));
-                        for (int j = 0; j < SHAREHOLDERS; j++) {
-                            outs[j].write(returnValue[j]);
-                            //System.arraycopy(returnValue[j], 0, encryptedData[j], pos, returnValue[j].length);
-                            //pos += returnValue[j].length;
-                        }
-
-                    }
-                    for (int j = 0; j < SHAREHOLDERS; j++) {
-                        outs[j].write(encryptedData[j]);
-                    }
-
-        } catch (IOException ioe) {
-            System.out.println("Exception while reading file " + ioe);
-        } finally {
-            pool.shutdown();
-        }
-    }
-
-
- */
 }

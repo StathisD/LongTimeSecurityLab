@@ -5,6 +5,7 @@ package de.tu_darmstadt.Encryption;
  */
 import de.tu_darmstadt.BigIntegerPolynomial;
 
+import javax.xml.bind.DatatypeConverter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
@@ -15,12 +16,16 @@ import static de.tu_darmstadt.Parameters.*;
 
 public class EncryptionTask implements Runnable {
 
-    private long startingByte;
-    private long endingByte;
+    private long sourceStartingByte;
+    private long sourceEndingByte;
+    private long destStartingByte;
+    private long destEndingByte;
 
-    public EncryptionTask(long startingByte, long endingByte) {
-        this.startingByte = startingByte;
-        this.endingByte = endingByte;
+    public EncryptionTask(long sourceStartingByte, long sourceEndingByte, long destStartingByte, long destEndingByte) {
+        this.sourceStartingByte = sourceStartingByte;
+        this.sourceEndingByte = sourceEndingByte;
+        this.destStartingByte = destStartingByte;
+        this.destEndingByte = destEndingByte;
     }
 
     @Override
@@ -29,22 +34,26 @@ public class EncryptionTask implements Runnable {
             RandomAccessFile sourceFile = new RandomAccessFile(FILEPATH, "r");
             RandomAccessFile targetFiles[] = new RandomAccessFile[SHAREHOLDERS];
             long copied = 0;
-            long contentLength = endingByte - startingByte;
+            long contentLength = sourceEndingByte - sourceStartingByte;
 
-            sourceFile.seek(startingByte);
+            sourceFile.seek(sourceStartingByte);
+
             for (int j = 0; j < SHAREHOLDERS; j++) {
                 targetFiles[j] = new RandomAccessFile(FILEPATH + j, "rw");
-                targetFiles[j].seek(startingByte + 18 + MODSIZE);
+                targetFiles[j].seek(destStartingByte);
             }
 
             while (copied < contentLength) {
                 byte buffer[];
-                if (contentLength - copied > MAX_BUFFER_SIZE) {
-                    buffer = new byte[MAX_BUFFER_SIZE];
+                if (contentLength - copied >= TARGET_BUFFER_SIZE) {
+                    buffer = new byte[TARGET_BUFFER_SIZE];
                 } else {
                     buffer = new byte[(int) (contentLength - copied)];
+                    System.out.println(buffer.length);
                 }
+
                 sourceFile.readFully(buffer);
+
 
                 int encodedSize = (int) Math.ceil(buffer.length * 1.0 / BLOCKSIZE);
                 byte[][] encryptedData = new byte[SHAREHOLDERS][encodedSize * SHARESIZE];
@@ -55,6 +64,8 @@ public class EncryptionTask implements Runnable {
                         oneNumber = Arrays.copyOfRange(buffer, i * BLOCKSIZE, (i + 1) * BLOCKSIZE);
                     } else {
                         oneNumber = Arrays.copyOfRange(buffer, i * BLOCKSIZE, buffer.length);
+                        System.out.println(DatatypeConverter.printHexBinary(oneNumber));
+
                     }
 
                     BigInteger number = new BigInteger(1, oneNumber);
@@ -82,6 +93,7 @@ public class EncryptionTask implements Runnable {
                 copied += buffer.length;
             }
         } catch (IOException e) {
+            System.out.println(sourceEndingByte);
             e.printStackTrace();
         }
     }
