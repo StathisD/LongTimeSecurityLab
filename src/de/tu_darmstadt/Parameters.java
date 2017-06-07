@@ -25,11 +25,9 @@ public final class Parameters {
     public static long TARGET_FILE_SIZE;
     public static long SHARES_FILE_SIZE_WITHOUT_HEADER;
     public static long SHARES_FILE_SIZE_WITH_HEADER;
-    public static int TARGET_CHUNK_SIZE;
-    public static int SHARES_CHUNK_SIZE;
-    public static int MAX_BUFFER_SIZE = 1024 * 1024 * 50;
-    public static int TARGET_BUFFER_SIZE;
-    public static int SHARES_BUFFER_SIZE;
+    public static int CHUNK_SIZE;
+    public static int MAX_BUFFER_SIZE = 1024 * 1024 * 100;
+    public static int BUFFER_SIZE;
     public static String FILEPATH;
 
     public static byte[] concat(byte[] first, byte[] second) {
@@ -52,9 +50,8 @@ public final class Parameters {
         long x = (long) Math.ceil(TARGET_FILE_SIZE * 1.0 / BLOCKSIZE);
         Parameters.SHARES_FILE_SIZE_WITHOUT_HEADER = x * SHARESIZE;
         Parameters.SHARES_FILE_SIZE_WITH_HEADER = x * SHARESIZE + HEADER_LENGTH;
-
+        int temp;
         if (mode == 0) {
-
             byte[] bytes = new byte[NBITS / 8];
             Arrays.fill(bytes, (byte) 0xff);
             BigInteger number = new BigInteger(1, bytes);
@@ -62,42 +59,19 @@ public final class Parameters {
             while (number.compareTo(MODULUS) > 0) {
                 MODULUS = new BigInteger(MODLENGTH, 100000, new Random());
             }
+            temp = (int) Math.min(CHUNKOFFILE, TARGET_FILE_SIZE) / NTHREADS;
+        } else {
+            temp = (int) Math.min(CHUNKOFFILE, SHARES_FILE_SIZE_WITHOUT_HEADER) / NTHREADS;
         }
 
-        int temp = (int) Math.min(CHUNKOFFILE, TARGET_FILE_SIZE) / NTHREADS;
         int maxPossibleBuffer = Math.min(MAX_BUFFER_SIZE, temp);
-        Parameters.TARGET_BUFFER_SIZE = maxPossibleBuffer - (maxPossibleBuffer % BLOCKSIZE);
-        Parameters.TARGET_CHUNK_SIZE = temp - (temp % TARGET_BUFFER_SIZE);
-
-
-        temp = (int) Math.min(CHUNKOFFILE, SHARES_FILE_SIZE_WITHOUT_HEADER) / NTHREADS;
-        maxPossibleBuffer = Math.min(MAX_BUFFER_SIZE, temp);
         int a = maxPossibleBuffer / (SHARESIZE * BLOCKSIZE);
+        Parameters.BUFFER_SIZE = a * (SHARESIZE * BLOCKSIZE);
+        int y = temp / Parameters.BUFFER_SIZE;
+        Parameters.CHUNK_SIZE = y * BUFFER_SIZE;
 
-        Parameters.SHARES_BUFFER_SIZE = a * (SHARESIZE * BLOCKSIZE);
-        int y = temp / Parameters.SHARES_BUFFER_SIZE;
-        Parameters.SHARES_CHUNK_SIZE = y * SHARES_BUFFER_SIZE;
-
-        /*
-        Parameters.SHARES_BUFFER_SIZE = maxPossibleBuffer - (maxPossibleBuffer % SHARESIZE);
-        show(SHARES_BUFFER_SIZE);
-        Parameters.SHARES_BUFFER_SIZE = maxPossibleBuffer - (maxPossibleBuffer % SHARESIZE*BLOCKSIZE);
-        show(SHARES_BUFFER_SIZE);
-
-        Parameters.SHARES_CHUNK_SIZE = temp - (temp % (SHARES_BUFFER_SIZE));
-        show(SHARES_CHUNK_SIZE);
-
-        Parameters.SHARES_CHUNK_SIZE = temp - (temp % (SHARES_BUFFER_SIZE*BLOCKSIZE));
-        show(SHARES_CHUNK_SIZE);
-
-        show(SHARES_BUFFER_SIZE);
-        show(SHARES_BUFFER_SIZE % BLOCKSIZE);
-        show(SHARES_BUFFER_SIZE % SHARESIZE);
-
-        show(SHARES_CHUNK_SIZE);
-        show(SHARES_CHUNK_SIZE % BLOCKSIZE);
-        show(SHARES_CHUNK_SIZE % SHARESIZE);
-        */
+        show(BUFFER_SIZE);
+        show(CHUNK_SIZE);
     }
 
     public static void setMODULUS(BigInteger MODULUS) {

@@ -3,9 +3,9 @@ package de.tu_darmstadt.Encryption;
 /**
  * Created by stathis on 6/4/17.
  */
+
 import de.tu_darmstadt.BigIntegerPolynomial;
 
-import javax.xml.bind.DatatypeConverter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
@@ -43,15 +43,14 @@ public class EncryptionTask implements Runnable {
 
             while (processed < contentLength) {
                 byte buffer[];
-                if (contentLength - processed >= TARGET_BUFFER_SIZE) {
-                    buffer = new byte[TARGET_BUFFER_SIZE];
+                if (contentLength - processed >= BUFFER_SIZE) {
+                    buffer = new byte[BUFFER_SIZE];
                 } else {
                     buffer = new byte[(int) (contentLength - processed)];
+
                 }
 
                 sourceFile.readFully(buffer);
-
-
                 int numbersInBuffer = (int) Math.ceil(buffer.length * 1.0 / BLOCKSIZE);
                 byte[][] encryptedData = new byte[SHAREHOLDERS][numbersInBuffer * SHARESIZE];
                 byte[] oneNumber;
@@ -61,8 +60,6 @@ public class EncryptionTask implements Runnable {
                         oneNumber = Arrays.copyOfRange(buffer, i * BLOCKSIZE, (i + 1) * BLOCKSIZE);
                     } else {
                         oneNumber = Arrays.copyOfRange(buffer, i * BLOCKSIZE, buffer.length);
-                        System.out.println(DatatypeConverter.printHexBinary(oneNumber));
-
                     }
 
                     BigInteger number = new BigInteger(1, oneNumber);
@@ -82,13 +79,11 @@ public class EncryptionTask implements Runnable {
                     }
                 }
                 for (int j = 0; j < SHAREHOLDERS; j++) {
-
                     targetFiles[j].write(encryptedData[j]);
                 }
                 processed += buffer.length;
             }
         } catch (IOException e) {
-            System.out.println(sourceEndingByte);
             e.printStackTrace();
         }
     }

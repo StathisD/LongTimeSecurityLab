@@ -21,7 +21,7 @@ public class BigIntegerPolynomial {
             coefficients[i] = ai;
         }
     }
-
+/*
     public static BigInteger interpolate(BigInteger[][] points, int neededPoints, BigInteger position, BigInteger modulus) {
         if (points.length < neededPoints) {
             // no interpolation possible
@@ -37,14 +37,32 @@ public class BigIntegerPolynomial {
                     if (!xj.equals(x)) {
                         BigInteger nominator = position.subtract(x);
                         BigInteger denominator = xj.subtract(x);
-                        BigInteger product = nominator.multiply(denominator.modInverse(modulus)).mod(modulus);
-                        lj = lj.multiply(product).mod(modulus);
+                        BigInteger product = nominator.multiply(denominator.modInverse(modulus));
+                        lj = lj.multiply(product);
                     }
                 }
-                result = result.add(yj.multiply(lj)).mod(modulus);
+                result = result.add(yj.multiply(lj));
             }
-            return result;
+            return result.mod(modulus);
         }
+    }*/
+
+    public static BigInteger interpolate(BigInteger[][] points, BigInteger modulus) {
+        BigInteger result = BigInteger.ZERO;
+        for (int i = 0; i < points.length; i++) {
+            BigInteger xj = points[i][0];
+            BigInteger yj = points[i][1];
+            BigInteger lj = BigInteger.ONE;
+            for (int j = 0; j < points.length; j++) {
+                BigInteger x = points[j][0];
+                if (!xj.equals(x)) {
+                    BigInteger product = x.multiply(x.subtract(xj).modInverse(modulus));
+                    lj = lj.multiply(product);
+                }
+            }
+            result = result.add(yj.multiply(lj));
+        }
+        return result.mod(modulus);
     }
 
     public BigInteger evaluate(BigInteger value) {
@@ -52,8 +70,8 @@ public class BigIntegerPolynomial {
         for (int i = 0; i < coefficients.length; i++) {
             BigInteger index = BigInteger.valueOf(i);
             BigInteger coefficient = coefficients[i];
-            result = result.add(coefficient.multiply(value.modPow(index, modulus)).mod(modulus)).mod(modulus);
+            result = result.add(coefficient.multiply(value.modPow(index, modulus)));
         }
-        return result;
+        return result.mod(modulus);
     }
 }

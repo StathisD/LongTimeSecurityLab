@@ -47,43 +47,39 @@ public class Main {
                 outs[j].writeShort(SHAREHOLDERS);
                 outs[j].write(fixLength(MODULUS.toByteArray(), MODSIZE));
             }
-            ExecutorService pool = Executors.newFixedThreadPool(NTHREADS);
+            ExecutorService pool = Executors.newFixedThreadPool(NTHREADS + 1);
 
             long sourceStartingByte = 0;
             long sourceEndingByte = 0;
-            long destStartingByte = HEADER_LENGTH;
-            long destEndingByte = HEADER_LENGTH;
-
-            int x = TARGET_CHUNK_SIZE / BLOCKSIZE;
-            SHARES_CHUNK_SIZE = SHARESIZE * x;
 
             while (TARGET_FILE_SIZE > sourceStartingByte) {
 
-                if (sourceEndingByte + TARGET_CHUNK_SIZE <= TARGET_FILE_SIZE) {
-                    sourceEndingByte = sourceEndingByte + TARGET_CHUNK_SIZE;
+                if (sourceEndingByte + CHUNK_SIZE <= TARGET_FILE_SIZE) {
+                    sourceEndingByte = sourceEndingByte + CHUNK_SIZE;
 
                 } else {
                     sourceEndingByte = TARGET_FILE_SIZE;
                 }
-                destEndingByte = destEndingByte + SHARES_CHUNK_SIZE;
+
+                long numbers = sourceStartingByte / BLOCKSIZE;
+                long destStartingByte = numbers * SHARESIZE + HEADER_LENGTH;
+                numbers = sourceEndingByte / BLOCKSIZE;
+                long destEndingByte = numbers * SHARESIZE + HEADER_LENGTH;
 
 
                 System.out.println("Starting Encryption Task with source: " + sourceStartingByte + " to " + sourceEndingByte);
                 System.out.println("Starting Encryption Task with dest: " + destStartingByte + " to " + destEndingByte);
-                System.out.println();
 
                 EncryptionTask task = new EncryptionTask(sourceStartingByte, sourceEndingByte, destStartingByte);
                 pool.submit(task);
 
                 sourceStartingByte = sourceEndingByte;
-                destStartingByte = destEndingByte;
-
             }
 
             pool.shutdown();
-            pool.awaitTermination(60, TimeUnit.SECONDS);
+            pool.awaitTermination(10, TimeUnit.MINUTES);
             if (outs[0].length() != SHARES_FILE_SIZE_WITH_HEADER) {
-                System.out.println("ERROR");
+                System.out.println("ERROR in Encryption");
                 System.out.println(SHARES_FILE_SIZE_WITH_HEADER - outs[0].length());
             }
 
@@ -95,44 +91,36 @@ public class Main {
 
     public static void decrypt() {
         try {
-            RandomAccessFile[] ins = new RandomAccessFile[5];
-
-            int j = 0;
-            ins[j] = new RandomAccessFile(FILEPATH + j, "r");
-            ins[j].seek(0L);
-            long targetFileSize = ins[j].readLong();
-            short nbits = ins[j].readShort();
-            short shareholders = ins[j].readShort();
+            RandomAccessFile in = new RandomAccessFile(FILEPATH + 0, "r");
+            in.seek(0L);
+            long targetFileSize = in.readLong();
+            short nbits = in.readShort();
+            short shareholders = in.readShort();
             initializeParameters(shareholders, nbits, (short) 8, 12, 1024 * 1024 * 1024, targetFileSize, 1);
             byte[] bytes = new byte[MODSIZE];
-            ins[j].readFully(bytes);
+            in.readFully(bytes);
             BigInteger modulus = new BigInteger(1, bytes);
             setMODULUS(modulus);
-            ins[j].seek(0L);
+            in.seek(0L);
 
             ExecutorService pool = Executors.newFixedThreadPool(NTHREADS);
 
             long sourceStartingByte = HEADER_LENGTH;
             long sourceEndingByte = HEADER_LENGTH;
-            long destStartingByte = 0;
-            long destEndingByte = 0;
-
-            int x = SHARES_CHUNK_SIZE / BLOCKSIZE;
-            TARGET_CHUNK_SIZE = BLOCKSIZE * x;
 
 
             while (SHARES_FILE_SIZE_WITH_HEADER > sourceStartingByte) {
 
-                if (sourceEndingByte + SHARES_CHUNK_SIZE <= SHARES_FILE_SIZE_WITH_HEADER) {
-                    sourceEndingByte = sourceEndingByte + SHARES_CHUNK_SIZE;
+                if (sourceEndingByte + CHUNK_SIZE <= SHARES_FILE_SIZE_WITH_HEADER) {
+                    sourceEndingByte = sourceEndingByte + CHUNK_SIZE;
                 } else {
                     sourceEndingByte = SHARES_FILE_SIZE_WITH_HEADER;
                 }
 
-                long y = (sourceStartingByte - HEADER_LENGTH) / SHARESIZE;
-                destStartingByte = y * BLOCKSIZE;
-                y = (sourceEndingByte - HEADER_LENGTH) / SHARESIZE;
-                destEndingByte = y * BLOCKSIZE;
+                long numbers = (sourceStartingByte - HEADER_LENGTH) / SHARESIZE;
+                long destStartingByte = numbers * BLOCKSIZE;
+                numbers = (sourceEndingByte - HEADER_LENGTH) / SHARESIZE;
+                long destEndingByte = numbers * BLOCKSIZE;
 
                 show("Starting Decryption Task with source: " + sourceStartingByte + " to " + sourceEndingByte);
                 show("Starting Decryption Task with dest: " + destStartingByte + " to " + destEndingByte);
@@ -143,7 +131,7 @@ public class Main {
                 sourceStartingByte = sourceEndingByte;
             }
             pool.shutdown();
-            pool.awaitTermination(60 * 15, TimeUnit.SECONDS);
+            pool.awaitTermination(20, TimeUnit.MINUTES);
 
         } catch (Exception ex) {
             ex.printStackTrace();

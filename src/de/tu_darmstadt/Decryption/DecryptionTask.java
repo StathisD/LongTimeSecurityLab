@@ -57,9 +57,9 @@ public class DecryptionTask implements Runnable {
                 byte[] outBuffer;
                 BigInteger[][] shares = new BigInteger[SHAREHOLDERS][2];
 
-                if (contentLength - processed >= SHARES_BUFFER_SIZE) {
-                    buffer = new byte[SHAREHOLDERS][SHARES_BUFFER_SIZE];
-                    numbersInBuffer = SHARES_BUFFER_SIZE / SHARESIZE;
+                if (contentLength - processed >= BUFFER_SIZE) {
+                    buffer = new byte[SHAREHOLDERS][BUFFER_SIZE];
+                    numbersInBuffer = BUFFER_SIZE / SHARESIZE;
                     outBuffer = new byte[numbersInBuffer * BLOCKSIZE];
                 } else {
                     // last chunk, last buffer
@@ -90,7 +90,7 @@ public class DecryptionTask implements Runnable {
                     }
 
                     //decrypt
-                    BigInteger decryptedNumber = BigIntegerPolynomial.interpolate(shares, SHAREHOLDERS, BigInteger.ZERO, MODULUS);
+                    BigInteger decryptedNumber = BigIntegerPolynomial.interpolate(shares, MODULUS);
                     byte[] decryptedBytes = decryptedNumber.toByteArray();
 
                     if (i == numbersInBuffer - 1 && lastBuffer) {
