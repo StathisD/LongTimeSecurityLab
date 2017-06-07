@@ -70,8 +70,6 @@ public final class Parameters {
         int y = temp / Parameters.BUFFER_SIZE;
         Parameters.CHUNK_SIZE = y * BUFFER_SIZE;
 
-        show(BUFFER_SIZE);
-        show(CHUNK_SIZE);
     }
 
     public static void setMODULUS(BigInteger MODULUS) {
