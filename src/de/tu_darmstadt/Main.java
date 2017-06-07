@@ -22,15 +22,15 @@ public class Main {
 
         Timestamp start = new Timestamp(System.currentTimeMillis());
 
-        //enc();
-        dec();
+        //encrypt();
+        decrypt();
 
         Timestamp end = new Timestamp(System.currentTimeMillis());
         System.out.println(end.getTime() - start.getTime());
 
     }
 
-    public static void enc() {
+    public static void encrypt() {
         try {
             RandomAccessFile in = new RandomAccessFile(FILEPATH, "r");
             in.seek(0L);
@@ -57,9 +57,6 @@ public class Main {
             int x = TARGET_CHUNK_SIZE / BLOCKSIZE;
             SHARES_CHUNK_SIZE = SHARESIZE * x;
 
-            System.out.println(TARGET_CHUNK_SIZE % BLOCKSIZE);
-            System.out.println(SHARES_CHUNK_SIZE % SHARESIZE);
-
             while (TARGET_FILE_SIZE > sourceStartingByte) {
 
                 if (sourceEndingByte + TARGET_CHUNK_SIZE <= TARGET_FILE_SIZE) {
@@ -75,7 +72,7 @@ public class Main {
                 System.out.println("Starting Encryption Task with dest: " + destStartingByte + " to " + destEndingByte);
                 System.out.println();
 
-                EncryptionTask task = new EncryptionTask(sourceStartingByte, sourceEndingByte, destStartingByte, destEndingByte);
+                EncryptionTask task = new EncryptionTask(sourceStartingByte, sourceEndingByte, destStartingByte);
                 pool.submit(task);
 
                 sourceStartingByte = sourceEndingByte;
@@ -85,9 +82,9 @@ public class Main {
 
             pool.shutdown();
             pool.awaitTermination(60, TimeUnit.SECONDS);
-            if (outs[0].length() != SHARES_FILE_SIZE + HEADER_LENGTH) {
+            if (outs[0].length() != SHARES_FILE_SIZE_WITH_HEADER) {
                 System.out.println("ERROR");
-                System.out.println(SHARES_FILE_SIZE + HEADER_LENGTH - outs[0].length());
+                System.out.println(SHARES_FILE_SIZE_WITH_HEADER - outs[0].length());
             }
 
         } catch (Exception ex) {
@@ -96,9 +93,8 @@ public class Main {
 
     }
 
-    public static void dec() {
+    public static void decrypt() {
         try {
-
             RandomAccessFile[] ins = new RandomAccessFile[5];
 
             int j = 0;
@@ -124,32 +120,27 @@ public class Main {
             int x = SHARES_CHUNK_SIZE / BLOCKSIZE;
             TARGET_CHUNK_SIZE = BLOCKSIZE * x;
 
-            System.out.println(SHARES_FILE_SIZE % SHARES_CHUNK_SIZE);
 
+            while (SHARES_FILE_SIZE_WITH_HEADER > sourceStartingByte) {
 
-            while (SHARES_FILE_SIZE > sourceStartingByte) {
-
-                if (sourceEndingByte + SHARES_CHUNK_SIZE <= SHARES_FILE_SIZE) {
+                if (sourceEndingByte + SHARES_CHUNK_SIZE <= SHARES_FILE_SIZE_WITH_HEADER) {
                     sourceEndingByte = sourceEndingByte + SHARES_CHUNK_SIZE;
-
                 } else {
-                    sourceEndingByte = SHARES_FILE_SIZE;
+                    sourceEndingByte = SHARES_FILE_SIZE_WITH_HEADER;
                 }
 
-                destEndingByte = destEndingByte + TARGET_CHUNK_SIZE;
+                long y = (sourceStartingByte - HEADER_LENGTH) / SHARESIZE;
+                destStartingByte = y * BLOCKSIZE;
+                y = (sourceEndingByte - HEADER_LENGTH) / SHARESIZE;
+                destEndingByte = y * BLOCKSIZE;
 
+                show("Starting Decryption Task with source: " + sourceStartingByte + " to " + sourceEndingByte);
+                show("Starting Decryption Task with dest: " + destStartingByte + " to " + destEndingByte);
 
-                System.out.println("Starting Decryption Task with source: " + sourceStartingByte + " to " + sourceEndingByte);
-                //System.out.println("Starting Decryption Task with dest: " + destStartingByte +" to " + destEndingByte);
-
-                show((sourceEndingByte - sourceStartingByte));
-                System.out.println();
-                DecryptionTask task = new DecryptionTask(sourceStartingByte, sourceEndingByte, destStartingByte, destEndingByte);
+                DecryptionTask task = new DecryptionTask(sourceStartingByte, sourceEndingByte, destStartingByte);
                 pool.submit(task);
 
                 sourceStartingByte = sourceEndingByte;
-                destStartingByte = destEndingByte;
-
             }
             pool.shutdown();
             pool.awaitTermination(60 * 15, TimeUnit.SECONDS);

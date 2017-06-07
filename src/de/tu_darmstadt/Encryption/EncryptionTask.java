@@ -19,13 +19,11 @@ public class EncryptionTask implements Runnable {
     private long sourceStartingByte;
     private long sourceEndingByte;
     private long destStartingByte;
-    private long destEndingByte;
 
-    public EncryptionTask(long sourceStartingByte, long sourceEndingByte, long destStartingByte, long destEndingByte) {
+    public EncryptionTask(long sourceStartingByte, long sourceEndingByte, long destStartingByte) {
         this.sourceStartingByte = sourceStartingByte;
         this.sourceEndingByte = sourceEndingByte;
         this.destStartingByte = destStartingByte;
-        this.destEndingByte = destEndingByte;
     }
 
     @Override
@@ -33,7 +31,7 @@ public class EncryptionTask implements Runnable {
         try {
             RandomAccessFile sourceFile = new RandomAccessFile(FILEPATH, "r");
             RandomAccessFile targetFiles[] = new RandomAccessFile[SHAREHOLDERS];
-            long copied = 0;
+            long processed = 0;
             long contentLength = sourceEndingByte - sourceStartingByte;
 
             sourceFile.seek(sourceStartingByte);
@@ -43,23 +41,22 @@ public class EncryptionTask implements Runnable {
                 targetFiles[j].seek(destStartingByte);
             }
 
-            while (copied < contentLength) {
+            while (processed < contentLength) {
                 byte buffer[];
-                if (contentLength - copied >= TARGET_BUFFER_SIZE) {
+                if (contentLength - processed >= TARGET_BUFFER_SIZE) {
                     buffer = new byte[TARGET_BUFFER_SIZE];
                 } else {
-                    buffer = new byte[(int) (contentLength - copied)];
-                    System.out.println(buffer.length);
+                    buffer = new byte[(int) (contentLength - processed)];
                 }
 
                 sourceFile.readFully(buffer);
 
 
-                int encodedSize = (int) Math.ceil(buffer.length * 1.0 / BLOCKSIZE);
-                byte[][] encryptedData = new byte[SHAREHOLDERS][encodedSize * SHARESIZE];
+                int numbersInBuffer = (int) Math.ceil(buffer.length * 1.0 / BLOCKSIZE);
+                byte[][] encryptedData = new byte[SHAREHOLDERS][numbersInBuffer * SHARESIZE];
                 byte[] oneNumber;
 
-                for (int i = 0; i < encodedSize; i++) {
+                for (int i = 0; i < numbersInBuffer; i++) {
                     if ((i + 1) * BLOCKSIZE <= buffer.length) {
                         oneNumber = Arrays.copyOfRange(buffer, i * BLOCKSIZE, (i + 1) * BLOCKSIZE);
                     } else {
@@ -84,13 +81,11 @@ public class EncryptionTask implements Runnable {
                         System.arraycopy(byteShare, 0, encryptedData[x], i * SHARESIZE, byteShare.length);
                     }
                 }
-
-
                 for (int j = 0; j < SHAREHOLDERS; j++) {
 
                     targetFiles[j].write(encryptedData[j]);
                 }
-                copied += buffer.length;
+                processed += buffer.length;
             }
         } catch (IOException e) {
             System.out.println(sourceEndingByte);

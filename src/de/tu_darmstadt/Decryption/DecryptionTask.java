@@ -6,7 +6,6 @@ package de.tu_darmstadt.Decryption;
 
 import de.tu_darmstadt.BigIntegerPolynomial;
 
-import javax.xml.bind.DatatypeConverter;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -19,13 +18,12 @@ public class DecryptionTask implements Runnable {
     private long sourceStartingByte;
     private long sourceEndingByte;
     private long destStartingByte;
-    private long destEndingByte;
 
-    public DecryptionTask(long sourceStartingByte, long sourceEndingByte, long destStartingByte, long destEndingByte) {
+
+    public DecryptionTask(long sourceStartingByte, long sourceEndingByte, long destStartingByte) {
         this.sourceStartingByte = sourceStartingByte;
         this.sourceEndingByte = sourceEndingByte;
         this.destStartingByte = destStartingByte;
-        this.destEndingByte = destEndingByte;
     }
 
     @Override
@@ -36,12 +34,13 @@ public class DecryptionTask implements Runnable {
             long processed = 0;
             long contentLength = sourceEndingByte - sourceStartingByte;
 
-            boolean lastChunk = false;
             boolean lastBuffer = false;
             int sizeLastNumber = 0;
-            if (sourceEndingByte == SHARES_FILE_SIZE) {
-                lastChunk = true;
+            if (sourceEndingByte == SHARES_FILE_SIZE_WITH_HEADER) {
+                //lastChunk = true;
                 sizeLastNumber = (int) (TARGET_FILE_SIZE % BLOCKSIZE);
+
+
             }
 
             targetFile.seek(destStartingByte);
@@ -50,39 +49,35 @@ public class DecryptionTask implements Runnable {
                 sourceFiles[j] = new RandomAccessFile(FILEPATH + j, "r");
                 sourceFiles[j].seek(sourceStartingByte);
             }
-            long bytesProcessed = targetFile.getFilePointer();
 
             while (processed < contentLength) {
                 byte[][] buffer;
-                int encodedSize;
+                int numbersInBuffer;
                 byte[][] oneNumber = new byte[SHAREHOLDERS][];
                 byte[] outBuffer;
                 BigInteger[][] shares = new BigInteger[SHAREHOLDERS][2];
 
                 if (contentLength - processed >= SHARES_BUFFER_SIZE) {
                     buffer = new byte[SHAREHOLDERS][SHARES_BUFFER_SIZE];
-                    encodedSize = SHARES_BUFFER_SIZE / SHARESIZE;
-                    outBuffer = new byte[encodedSize * BLOCKSIZE];
+                    numbersInBuffer = SHARES_BUFFER_SIZE / SHARESIZE;
+                    outBuffer = new byte[numbersInBuffer * BLOCKSIZE];
                 } else {
                     // last chunk, last buffer
                     buffer = new byte[SHAREHOLDERS][(int) (contentLength - processed)];
-                    encodedSize = (int) Math.ceil(buffer[0].length * 1.0 / SHARESIZE);
-                    outBuffer = new byte[(encodedSize - 1) * BLOCKSIZE + sizeLastNumber];
+                    numbersInBuffer = buffer[0].length / SHARESIZE;
+                    outBuffer = new byte[(numbersInBuffer - 1) * BLOCKSIZE + sizeLastNumber];
                     lastBuffer = true;
 
                 }
                 for (int j = 0; j < SHAREHOLDERS; j++) {
                     sourceFiles[j].readFully(buffer[j]);
                 }
-                boolean guard = false;
-                for (int i = 0; i < encodedSize; i++) {
+                for (int i = 0; i < numbersInBuffer; i++) {
+
+                    // reconstruct number
                     for (int j = 0; j < SHAREHOLDERS; j++) {
-                        if ((i + 1) * SHARESIZE <= buffer[j].length) {
-                            oneNumber[j] = Arrays.copyOfRange(buffer[j], i * SHARESIZE, (i + 1) * SHARESIZE);
-                        } else {
-                            guard = true;
-                            oneNumber[j] = Arrays.copyOfRange(buffer[j], i * SHARESIZE, buffer[j].length);
-                        }
+
+                        oneNumber[j] = Arrays.copyOfRange(buffer[j], i * SHARESIZE, (i + 1) * SHARESIZE);
 
                         byte[] xValueBytes = new byte[1];
                         byte[] yValueBytes = new byte[MODSIZE];
@@ -95,34 +90,18 @@ public class DecryptionTask implements Runnable {
                     }
 
                     //decrypt
-                    BigInteger decryptedNumber;
-                    if (guard) {
-                        decryptedNumber = BigIntegerPolynomial.interpolate(shares, SHAREHOLDERS, BigInteger.ZERO, MODULUS);
-                    } else {
-                        decryptedNumber = BigInteger.ZERO;
-                    }
+                    BigInteger decryptedNumber = BigIntegerPolynomial.interpolate(shares, SHAREHOLDERS, BigInteger.ZERO, MODULUS);
                     byte[] decryptedBytes = decryptedNumber.toByteArray();
 
-                    if (guard) {
-                        show(contentLength % SHARESIZE);
-                        System.out.println(DatatypeConverter.printHexBinary(decryptedBytes));
+                    if (i == numbersInBuffer - 1 && lastBuffer) {
                         decryptedBytes = fixLength(decryptedBytes, sizeLastNumber);
-                        show(bytesProcessed);
-                        System.out.println(DatatypeConverter.printHexBinary(decryptedBytes));
-                        System.out.println(sourceFiles[0].getFilePointer());
-                        System.out.println(targetFile.getFilePointer());
                     } else {
-
                         decryptedBytes = fixLength(decryptedBytes, BLOCKSIZE);
-
                     }
-                    bytesProcessed += decryptedBytes.length;
+
                     System.arraycopy(decryptedBytes, 0, outBuffer, i * BLOCKSIZE, decryptedBytes.length);
                 }
                 targetFile.write(outBuffer);
-                //System.out.println("Space: " + (destEndingByte -destStartingByte));
-                //System.out.println("Used: " + outBuffer.length);
-                //System.out.println();
                 processed += buffer[0].length;
             }
         } catch (Exception e) {
