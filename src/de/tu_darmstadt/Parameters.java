@@ -10,69 +10,64 @@ import java.util.Random;
 public final class Parameters {
 
     // Encryption Parameters
-    public static short SHAREHOLDERS;
-    public static short NBITS; // in bits, must be power of 2
-    public static int BLOCKSIZE; // in Bytes
-    public static int MODLENGTH; // in bits, must be power of 2 or = 0 mod 8
-    public static int MODSIZE; // in Bytes
-    public static int SHARESIZE; // in Bytes
+    public static int SHAREHOLDERS;
+    public static int NEEDED_SHARES;
+    public static int BLOCK_SIZE; // in Bytes
+    public static int SHARE_SIZE; // in Bytes
     public static BigInteger MODULUS;
-
-    // Read/Write Parameters
-    public static short NTHREADS;
-    public static int HEADER_LENGTH;
-    public static int CHUNKOFFILE;
     public static long TARGET_FILE_SIZE;
-    public static long SHARES_FILE_SIZE_WITHOUT_HEADER;
     public static long SHARES_FILE_SIZE_WITH_HEADER;
-    public static int CHUNK_SIZE;
-    public static int MAX_BUFFER_SIZE = 1024 * 1024 * 100;
     public static int BUFFER_SIZE;
-    public static String FILEPATH;
+    public static String FILE_PATH;
+    static short BITS; // in bits, must be power of 2
+    static int MOD_LENGTH; // in bits, must be power of 2 or = 0 mod 8
+    // Read/Write Parameters
+    static int THREADS;
+    static int HEADER_LENGTH;
+    static long SHARES_FILE_SIZE_WITHOUT_HEADER;
+    static long CHUNK_SIZE;
+    static int MAX_BUFFER_SIZE = 1024 * 1024 * 20; // 100 for Encryption
 
-    public static byte[] concat(byte[] first, byte[] second) {
-        byte[] result = Arrays.copyOf(first, first.length + second.length);
-        System.arraycopy(second, 0, result, first.length, second.length);
-        return result;
-    }
-
-    public static void initializeParameters(short SHAREHOLDERS, short NBITS, short NTHREADS, int HEADER, int CHUNKOFFILE, long TARGET_FILE_SIZE, int mode) {
-        Parameters.SHAREHOLDERS = SHAREHOLDERS;
-        Parameters.NBITS = NBITS;
-        Parameters.BLOCKSIZE = NBITS / 8;
-        Parameters.MODLENGTH = NBITS + 8;
-        Parameters.MODSIZE = MODLENGTH / 8;
-        Parameters.SHARESIZE = MODSIZE + 1;
-        Parameters.NTHREADS = NTHREADS;
-        Parameters.HEADER_LENGTH = HEADER + MODSIZE;
-        Parameters.CHUNKOFFILE = CHUNKOFFILE;
+    static void initializeParameters(short BITS, int HEADER, long TARGET_FILE_SIZE, int mode) {
+        Parameters.BITS = BITS;
+        Parameters.BLOCK_SIZE = BITS / 8;
+        Parameters.MOD_LENGTH = BITS + 8;
+        Parameters.SHARE_SIZE = MOD_LENGTH / 8;
+        Parameters.THREADS = Runtime.getRuntime().availableProcessors();
+        Parameters.HEADER_LENGTH = HEADER + SHARE_SIZE;
         Parameters.TARGET_FILE_SIZE = TARGET_FILE_SIZE;
-        long x = (long) Math.ceil(TARGET_FILE_SIZE * 1.0 / BLOCKSIZE);
-        Parameters.SHARES_FILE_SIZE_WITHOUT_HEADER = x * SHARESIZE;
-        Parameters.SHARES_FILE_SIZE_WITH_HEADER = x * SHARESIZE + HEADER_LENGTH;
-        int temp;
+        long x = (long) Math.ceil(TARGET_FILE_SIZE * 1.0 / BLOCK_SIZE);
+        Parameters.SHARES_FILE_SIZE_WITHOUT_HEADER = x * SHARE_SIZE;
+        Parameters.SHARES_FILE_SIZE_WITH_HEADER = x * SHARE_SIZE + HEADER_LENGTH;
+        long chunkSize;
+        int maxPossibleBuffer;
+        int numberSize;
         if (mode == 0) {
-            byte[] bytes = new byte[NBITS / 8];
+            byte[] bytes = new byte[BITS / 8];
             Arrays.fill(bytes, (byte) 0xff);
             BigInteger number = new BigInteger(1, bytes);
-            MODULUS = new BigInteger(MODLENGTH, 100000, new Random());
+            MODULUS = new BigInteger(MOD_LENGTH, 100000, new Random());
             while (number.compareTo(MODULUS) > 0) {
-                MODULUS = new BigInteger(MODLENGTH, 100000, new Random());
+                MODULUS = new BigInteger(MOD_LENGTH, 100000, new Random());
             }
-            temp = (int) Math.min(CHUNKOFFILE, TARGET_FILE_SIZE) / NTHREADS;
+            chunkSize = TARGET_FILE_SIZE;
+            numberSize = BLOCK_SIZE;
         } else {
-            temp = (int) Math.min(CHUNKOFFILE, SHARES_FILE_SIZE_WITHOUT_HEADER) / NTHREADS;
+            chunkSize = SHARES_FILE_SIZE_WITHOUT_HEADER;
+            numberSize = SHARE_SIZE;
         }
-
-        int maxPossibleBuffer = Math.min(MAX_BUFFER_SIZE, temp);
-        int a = maxPossibleBuffer / (SHARESIZE * BLOCKSIZE);
-        Parameters.BUFFER_SIZE = a * (SHARESIZE * BLOCKSIZE);
-        int y = temp / Parameters.BUFFER_SIZE;
-        Parameters.CHUNK_SIZE = y * BUFFER_SIZE;
-
+        chunkSize = (long) Math.ceil(chunkSize / (THREADS * 1.0));
+        if (MAX_BUFFER_SIZE >= chunkSize) {
+            Parameters.CHUNK_SIZE = chunkSize - (chunkSize % numberSize);
+            Parameters.BUFFER_SIZE = (int) CHUNK_SIZE;
+        } else {
+            maxPossibleBuffer = MAX_BUFFER_SIZE - MAX_BUFFER_SIZE % numberSize;
+            Parameters.CHUNK_SIZE = chunkSize - (chunkSize % maxPossibleBuffer);
+            Parameters.BUFFER_SIZE = (int) Math.min(maxPossibleBuffer, CHUNK_SIZE);
+        }
     }
 
-    public static void setMODULUS(BigInteger MODULUS) {
+    static void setMODULUS(BigInteger MODULUS) {
         Parameters.MODULUS = MODULUS;
     }
 

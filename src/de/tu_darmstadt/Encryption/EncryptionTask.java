@@ -29,7 +29,7 @@ public class EncryptionTask implements Runnable {
     @Override
     public void run() {
         try {
-            RandomAccessFile sourceFile = new RandomAccessFile(FILEPATH, "r");
+            RandomAccessFile sourceFile = new RandomAccessFile(FILE_PATH, "r");
             RandomAccessFile targetFiles[] = new RandomAccessFile[SHAREHOLDERS];
             long processed = 0;
             long contentLength = sourceEndingByte - sourceStartingByte;
@@ -37,7 +37,7 @@ public class EncryptionTask implements Runnable {
             sourceFile.seek(sourceStartingByte);
 
             for (int j = 0; j < SHAREHOLDERS; j++) {
-                targetFiles[j] = new RandomAccessFile(FILEPATH + j, "rw");
+                targetFiles[j] = new RandomAccessFile(FILE_PATH + j, "rw");
                 targetFiles[j].seek(destStartingByte);
             }
 
@@ -51,31 +51,29 @@ public class EncryptionTask implements Runnable {
                 }
 
                 sourceFile.readFully(buffer);
-                int numbersInBuffer = (int) Math.ceil(buffer.length * 1.0 / BLOCKSIZE);
-                byte[][] encryptedData = new byte[SHAREHOLDERS][numbersInBuffer * SHARESIZE];
+                int numbersInBuffer = (int) Math.ceil(buffer.length * 1.0 / BLOCK_SIZE);
+                byte[][] encryptedData = new byte[SHAREHOLDERS][numbersInBuffer * SHARE_SIZE];
                 byte[] oneNumber;
 
                 for (int i = 0; i < numbersInBuffer; i++) {
-                    if ((i + 1) * BLOCKSIZE <= buffer.length) {
-                        oneNumber = Arrays.copyOfRange(buffer, i * BLOCKSIZE, (i + 1) * BLOCKSIZE);
+                    if ((i + 1) * BLOCK_SIZE <= buffer.length) {
+                        oneNumber = Arrays.copyOfRange(buffer, i * BLOCK_SIZE, (i + 1) * BLOCK_SIZE);
                     } else {
-                        oneNumber = Arrays.copyOfRange(buffer, i * BLOCKSIZE, buffer.length);
+                        oneNumber = Arrays.copyOfRange(buffer, i * BLOCK_SIZE, buffer.length);
                     }
 
                     BigInteger number = new BigInteger(1, oneNumber);
 
                     //encrypt
-                    BigIntegerPolynomial polynomial = new BigIntegerPolynomial(SHAREHOLDERS - 1, MODULUS, number);
+                    BigIntegerPolynomial polynomial = new BigIntegerPolynomial(NEEDED_SHARES - 1, MODULUS, number);
 
                     byte[] byteShare;
 
                     for (int x = 0; x < SHAREHOLDERS; x++) {
                         BigInteger xValue = BigInteger.valueOf(x + 1);
                         BigInteger yValue = polynomial.evaluate(xValue);
-                        byte[] xValueBytes = xValue.toByteArray();
-                        byte[] yValueBytes = fixLength(yValue.toByteArray(), MODSIZE);
-                        byteShare = concat(xValueBytes, yValueBytes);
-                        System.arraycopy(byteShare, 0, encryptedData[x], i * SHARESIZE, byteShare.length);
+                        byteShare = fixLength(yValue.toByteArray(), SHARE_SIZE);
+                        System.arraycopy(byteShare, 0, encryptedData[x], i * SHARE_SIZE, byteShare.length);
                     }
                 }
                 for (int j = 0; j < SHAREHOLDERS; j++) {
