@@ -5,7 +5,6 @@ import de.tu_darmstadt.Encryption.EncryptionTask;
 
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
-import java.sql.Timestamp;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -22,14 +21,16 @@ public class Main {
         SHAREHOLDERS = Integer.parseInt(args[1]);
         NEEDED_SHARES = Integer.parseInt(args[2]);
 
+        //SSLServer.startServer();
+        SSLClient.startClient();
 
-        Timestamp start = new Timestamp(System.currentTimeMillis());
+        /*Timestamp start = new Timestamp(System.currentTimeMillis());
 
         encrypt();
         decrypt();
 
         Timestamp end = new Timestamp(System.currentTimeMillis());
-        System.out.println(end.getTime() - start.getTime());
+        System.out.println(end.getTime() - start.getTime());*/
 
     }
 
