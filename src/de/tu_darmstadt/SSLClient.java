@@ -26,6 +26,7 @@ public class SSLClient {
                 (SSLSocketFactory) SSLSocketFactory.getDefault();
         try {
             Socket socket = sslSocketFactory.createSocket("localhost", port);
+
             BufferedOutputStream out = new BufferedOutputStream(socket.getOutputStream(), BUFFER_SIZE);
             BufferedInputStream in = new BufferedInputStream((socket.getInputStream()), BUFFER_SIZE);
             while (true) {
@@ -39,6 +40,7 @@ public class SSLClient {
                 byte[] buffer = new byte[10];
                 in.read(buffer);
             }
+            socket.close();
 
 
         } catch (IOException ex) {
