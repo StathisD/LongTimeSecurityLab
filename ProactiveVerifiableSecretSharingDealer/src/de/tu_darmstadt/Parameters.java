@@ -1,8 +1,14 @@
 package de.tu_darmstadt;
 
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.ObjectOutputStream;
 import java.math.BigInteger;
+import java.net.Socket;
 import java.util.Arrays;
+import java.util.Properties;
 import java.util.Random;
+import java.util.concurrent.Executor;
 
 /**
  * Created by stathis on 6/3/17.
@@ -21,26 +27,26 @@ public final class Parameters {
     public static String FILE_PATH;
     static short BITS; // in bits, must be power of 2
     static int MOD_LENGTH; // in bits, must be power of 2 or = 0 mod 8
+
     // Read/Write Parameters
+    static int ports[] = {8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009, 8010};
+    static SSLClient[] sslClients;
     static int THREADS;
     static int HEADER_LENGTH;
     static long SHARES_FILE_SIZE_WITHOUT_HEADER;
     static long CHUNK_SIZE;
-    static int MAX_BUFFER_SIZE = 1024 * 1024 * 20; // 100 for Encryption
+    static int MAX_BUFFER_SIZE = 1024 * 1024 * 1; // 100 for Encryption
 
-    static void initializeParameters(short BITS, int HEADER, long TARGET_FILE_SIZE, int mode) {
+    static void initializeParameters(short BITS, long TARGET_FILE_SIZE, int mode) {
         Parameters.BITS = BITS;
         Parameters.BLOCK_SIZE = BITS / 8;
         Parameters.MOD_LENGTH = BITS + 8;
         Parameters.SHARE_SIZE = MOD_LENGTH / 8;
         Parameters.THREADS = Runtime.getRuntime().availableProcessors();
-        Parameters.HEADER_LENGTH = HEADER + SHARE_SIZE;
         Parameters.TARGET_FILE_SIZE = TARGET_FILE_SIZE;
         long x = (long) Math.ceil(TARGET_FILE_SIZE * 1.0 / BLOCK_SIZE);
         Parameters.SHARES_FILE_SIZE_WITHOUT_HEADER = x * SHARE_SIZE;
-        Parameters.SHARES_FILE_SIZE_WITH_HEADER = x * SHARE_SIZE + HEADER_LENGTH;
-        long chunkSize;
-        int maxPossibleBuffer;
+
         int numberSize;
         if (mode == 0) {
             byte[] bytes = new byte[BITS / 8];
@@ -50,21 +56,14 @@ public final class Parameters {
             while (number.compareTo(MODULUS) > 0) {
                 MODULUS = new BigInteger(MOD_LENGTH, 100000, new Random());
             }
-            chunkSize = TARGET_FILE_SIZE;
             numberSize = BLOCK_SIZE;
         } else {
-            chunkSize = SHARES_FILE_SIZE_WITHOUT_HEADER;
             numberSize = SHARE_SIZE;
         }
-        chunkSize = (long) Math.ceil(chunkSize / (THREADS * 1.0));
-        if (MAX_BUFFER_SIZE >= chunkSize) {
-            Parameters.CHUNK_SIZE = chunkSize - (chunkSize % numberSize);
-            Parameters.BUFFER_SIZE = (int) CHUNK_SIZE;
-        } else {
-            maxPossibleBuffer = MAX_BUFFER_SIZE - MAX_BUFFER_SIZE % numberSize;
-            Parameters.CHUNK_SIZE = chunkSize - (chunkSize % maxPossibleBuffer);
-            Parameters.BUFFER_SIZE = (int) Math.min(maxPossibleBuffer, CHUNK_SIZE);
-        }
+
+        BUFFER_SIZE = (int) Math.min( Math.ceil(TARGET_FILE_SIZE / THREADS) , MAX_BUFFER_SIZE);
+        BUFFER_SIZE = BUFFER_SIZE - BUFFER_SIZE % numberSize;
+
     }
 
     static void setMODULUS(BigInteger MODULUS) {
