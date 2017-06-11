@@ -11,6 +11,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -20,8 +22,12 @@ public class SSLShareHolder implements Runnable{
 
     private int port;
     private Socket socket;
+    int xValue;
     private DataOutputStream out;
     private DataInputStream in;
+    static ExecutorService pool;
+
+    public final LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
 
     private static SSLServerSocketFactory sslServerSocketFactory;
 
@@ -33,7 +39,7 @@ public class SSLShareHolder implements Runnable{
         System.setProperty("javax.net.ssl.keyStore", "/media/stathis/9AEA2384EA235BAF/keystore.jks");
         System.setProperty("javax.net.ssl.keyStorePassword", "123456");
         sslServerSocketFactory = (SSLServerSocketFactory) SSLServerSocketFactory.getDefault();
-        ExecutorService pool = Executors.newCachedThreadPool();
+        pool = Executors.newCachedThreadPool();
         for (int port : ports) {
             SSLShareHolder sslShareHolder = new SSLShareHolder(port);
             pool.submit(sslShareHolder);
@@ -84,8 +90,8 @@ public class SSLShareHolder implements Runnable{
             long dataReceived = 0;
 
             long shareFileSize = in.readLong();
-            initializeParameters( 4, shareFileSize);
-            int xValue = in.readInt();
+
+            xValue = in.readInt();
             int modSize = in.readInt();
             byte[] bytes = new byte[modSize];
             in.read(bytes);
@@ -93,17 +99,58 @@ public class SSLShareHolder implements Runnable{
             BigInteger modulus = new BigInteger(1, bytes);
             setMODULUS(modulus);
 
+            boolean verifiability = in.readBoolean();
+
+            if (verifiability)  {
+                shareFileSize = shareFileSize/3;
+                bytes = new byte[modSize];
+                in.read(bytes);
+                BigIntegerPolynomial.g = new BigInteger(1, bytes);
+                bytes = new byte[modSize];
+                in.read(bytes);
+                BigIntegerPolynomial.h = new BigInteger(1, bytes);
+            }
+
+            initializeParameters( modSize,4, shareFileSize, verifiability);
+
             RandomAccessFile shareFile = new RandomAccessFile(FILE_PATH + (xValue-1), "rw");
             shareFile.seek(0L);
             shareFile.writeInt(xValue);
 
-            while (dataReceived != SHARES_FILE_SIZE_WITHOUT_HEADER) {
-                byte[] buffer = new byte[1024*1024*16];
-                int bytesRead = in.read(buffer);
-                //show("Socket " + (port%8000) + " received " + bytesRead + " data");
-                shareFile.write(buffer, 0, bytesRead);
-                dataReceived += bytesRead;
+            if (verifiability){
+                Verifier verifier = new Verifier(this);
+                verifier.start();
+                while (dataReceived != SHARES_FILE_SIZE_WITHOUT_HEADER) {
+                    int bufferSize = 0;
+                    int limit = (int) Math.min(BUFFER_SIZE, SHARES_FILE_SIZE_WITHOUT_HEADER - dataReceived );
+                    byte[] encryptedData = new byte[limit ];
+                    while(bufferSize < limit ){
+                        byte[] buffer = new byte[limit  - bufferSize];
+                        int bytesRead = in.read(buffer);
+                        show("Socket " + (port%8000) + " received " + bytesRead + " data");
+                        if (bytesRead > 0){
+                            shareFile.write(buffer, 0, bytesRead);
+                            System.arraycopy(buffer, 0, encryptedData, bufferSize, bytesRead);
+                            bufferSize += bytesRead;
+                        }
+
+                    }
+                    if(encryptedData.length != BUFFER_SIZE) show(encryptedData.length);
+                    queue.put(encryptedData);
+                    dataReceived += bufferSize;
+                }
+            }else {
+                while (dataReceived != SHARES_FILE_SIZE_WITHOUT_HEADER) {
+                    byte[] buffer = new byte[1024*1024*16];
+                    int bytesRead = in.read(buffer);
+                    //show("Socket " + (port%8000) + " received " + bytesRead + " data");
+                    if (bytesRead > 0){
+                        shareFile.write(buffer, 0, bytesRead);
+                        dataReceived += bytesRead;
+                    }
+                }
             }
+
 
             if (shareFile.length() == SHARES_FILE_SIZE_WITH_HEADER){
                 show("Share File " + (xValue-1) + " created successfully");
@@ -126,7 +173,7 @@ public class SSLShareHolder implements Runnable{
 
             long shareFileSize = shareFile.length() - 4;
 
-            initializeParameters(4, shareFileSize);
+            initializeParameters((short)0,4, shareFileSize, false);
 
             int xValue = shareFile.readInt();
             out.writeInt(xValue);
