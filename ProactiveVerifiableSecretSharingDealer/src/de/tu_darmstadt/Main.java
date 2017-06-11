@@ -5,7 +5,8 @@ import de.tu_darmstadt.Encryption.EncryptionTask;
 
 import java.io.*;
 import java.math.BigInteger;
-import java.util.Arrays;
+import java.sql.Timestamp;
+import java.util.Random;
 import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,128 +34,113 @@ public class Main {
             input = scanner.nextInt();
         } while (input <= 0 || input > 2);
 
-        SSLClient.openNewConnections(input);
+        Timestamp start = new Timestamp(System.currentTimeMillis());
 
         switch (input) {
             case 1:
-                encryptFile();
+                encryptFile(input);
                 break;
             case 2:
-                decryptFile();
+                decryptFile(input);
                 break;
         }
 
 
-
-        /*Timestamp start = new Timestamp(System.currentTimeMillis());
-
-
-
         Timestamp end = new Timestamp(System.currentTimeMillis());
-        System.out.println(end.getTime() - start.getTime());*/
-
+        show(end.getTime() - start.getTime());
     }
 
-    public static void encryptFile() {
+    private static void encryptFile(int mode) {
         try {
             RandomAccessFile sourceFile = new RandomAccessFile(FILE_PATH, "r");
             sourceFile.seek(0L);
             long targetFileSize = sourceFile.length();
 
-            initializeParameters((short) 1024,  targetFileSize, 0);
+            boolean verifiability = true;
 
-            try {
-                FileOutputStream fout = new FileOutputStream("properties.dat");
-                ObjectOutputStream oos = new ObjectOutputStream(fout);
-                oos.writeInt(SHAREHOLDERS);
-                oos.writeInt(NEEDED_SHARES);
-                oos.writeObject(FILE_PATH);
-                oos.writeLong(TARGET_FILE_SIZE);
-                oos.writeShort(BITS);
-                oos.writeObject(MODULUS);
-                oos.close();
+            initializeParameters((short) 1024, targetFileSize, 0, verifiability);
+
+            if (verifiability) {
+                BigIntegerPolynomial.g = new BigInteger(Parameters.MOD_LENGTH, new Random()).mod(MODULUS);
+                BigIntegerPolynomial.h = new BigInteger(Parameters.MOD_LENGTH, new Random()).mod(MODULUS);
             }
-            catch (Exception e) { e.printStackTrace(); }
+
+            FileOutputStream fout = new FileOutputStream("properties.dat");
+            ObjectOutputStream oos = new ObjectOutputStream(fout);
+            oos.writeInt(SHAREHOLDERS);
+            oos.writeInt(NEEDED_SHARES);
+            oos.writeObject(FILE_PATH);
+            oos.writeLong(TARGET_FILE_SIZE);
+            oos.writeShort(BITS);
+            oos.writeObject(MODULUS);
+            oos.close();
+
+            ExecutorService socketPool = SSLClient.openNewConnections(mode);
 
             ExecutorService pool = Executors.newFixedThreadPool(THREADS);
             long encrypted = 0;
             long processed = 0;
             byte buffer[];
             Future[] futures = new Future[THREADS];
-
-            int numbers = BUFFER_SIZE / BLOCK_SIZE;
-            int encryptedBufferSize = numbers*SHARE_SIZE;
             int numberOfThreads = 0;
             boolean lastBuffer = false;
             while (processed < targetFileSize) {
-                long previousProcessed = processed;
+
                 for (int i = 0; i < THREADS; i++) {
+
                     if (targetFileSize - processed >= BUFFER_SIZE) {
                         buffer = new byte[BUFFER_SIZE];
                     } else {
                         buffer = new byte[(int) (targetFileSize - processed)];
+                        lastBuffer = true;
                     }
-
                     sourceFile.readFully(buffer);
                     EncryptionTask task = new EncryptionTask(buffer);
                     futures[i] = pool.submit(task);
                     processed += buffer.length;
                     numberOfThreads = i;
-                    if (buffer.length < BUFFER_SIZE){
-                        lastBuffer = true;
+                    if (lastBuffer) {
                         break;
                     }
                 }
 
-                numbers = (int) Math.ceil((processed - previousProcessed) / BLOCK_SIZE);
-                if (lastBuffer) numbers++;
-
-                byte[][] encryptedData = new byte[SHAREHOLDERS][numbers * SHARE_SIZE];
-
                 for (int i = 0; i <= numberOfThreads; i++) {
                     byte[][] taskBuffer = (byte[][]) futures[i].get();
+                    encrypted += taskBuffer[0].length;
 
                     for (int j = 0; j < SHAREHOLDERS; j++) {
-                        System.arraycopy(taskBuffer[j], 0, encryptedData[j], i*encryptedBufferSize, taskBuffer[j].length);
+                        sslClients[j].queue.put(taskBuffer[j]);
                     }
                 }
-
-                encrypted += encryptedData[0].length;
-
-                for (int j = 0; j < SHAREHOLDERS; j++) {
-                    sslClients[j].queue.put(encryptedData[j]);
-                }
-
             }
-            if (encrypted != SHARES_FILE_SIZE_WITHOUT_HEADER){
-                show("ERROR");
+            if (encrypted != SHARES_FILE_SIZE) {
+                show("ERROR in File Encryption");
+            } else {
+                show("File Encryption completed successfully");
             }
-            show("File Encryption completed");
             pool.shutdown();
+            pool.awaitTermination(10, TimeUnit.MINUTES);
 
-
+            socketPool.shutdown();
+            socketPool.awaitTermination(10, TimeUnit.MINUTES);
         } catch (Exception e) {
             e.printStackTrace();
         }
-
     }
 
-    public static void decryptFile() {
+    private static void decryptFile(int mode) {
         try {
+            FileInputStream fin = new FileInputStream("properties.dat");
+            ObjectInputStream ois = new ObjectInputStream(fin);
+            SHAREHOLDERS = ois.readInt();
+            NEEDED_SHARES = ois.readInt();
+            FILE_PATH = (String) ois.readObject();
+            TARGET_FILE_SIZE = ois.readLong();
+            BITS = ois.readShort();
+            MODULUS = (BigInteger) ois.readObject();
+            ois.close();
 
-            try {
-                FileInputStream fin = new FileInputStream("properties.dat");
-                ObjectInputStream ois = new ObjectInputStream(fin);
-                SHAREHOLDERS = ois.readInt();
-                NEEDED_SHARES = ois.readInt();
-                FILE_PATH = (String) ois.readObject();
-                TARGET_FILE_SIZE = ois.readLong();
-                BITS = ois.readShort();
-                MODULUS = (BigInteger) ois.readObject();
-                ois.close();
-            }
-            catch (Exception e) { e.printStackTrace(); }
-            initializeParameters(BITS, TARGET_FILE_SIZE, 1);
+            initializeParameters(BITS, TARGET_FILE_SIZE, 1, false);
 
             Thread.sleep(200);
             BigInteger[] xValues = new BigInteger[NEEDED_SHARES];
@@ -165,21 +151,23 @@ public class Main {
             //compute Lagrange Coefficients
             BigIntegerPolynomial.computeLagrangeCoefficients(xValues, MODULUS);
 
+            ExecutorService socketPool = SSLClient.openNewConnections(mode);
+
             ExecutorService pool = Executors.newFixedThreadPool(THREADS);
 
             long destStartingByte = 0;
-
             long processed = 0;
+            int numberOfThreads = 0;
             byte buffer[][] = new byte[NEEDED_SHARES][];
-
             Future[] futures = new Future[THREADS];
-            while (processed < SHARES_FILE_SIZE_WITHOUT_HEADER) {
-                int numberOfThreads = 0;
+
+            while (processed < SHARES_FILE_SIZE) {
+
                 for (int i = 0; i < THREADS; i++) {
+
                     for (int j = 0; j< NEEDED_SHARES; j++){
                         buffer[j] = sslClients[j].queue.poll(10, TimeUnit.MINUTES);
                     }
-                    //show(buffer[0].length);
                     int numbers = buffer[0].length / SHARE_SIZE;
 
                     DecryptionTask task = new DecryptionTask(buffer, destStartingByte);
@@ -187,7 +175,7 @@ public class Main {
                     destStartingByte += numbers*BLOCK_SIZE;
                     processed += buffer[0].length;
                     numberOfThreads = i;
-                    if (processed >=SHARES_FILE_SIZE_WITHOUT_HEADER ) break;
+                    if (processed >= SHARES_FILE_SIZE) break;
                 }
 
                 for (int i = 0; i <= numberOfThreads; i++) {
@@ -198,6 +186,9 @@ public class Main {
 
             pool.shutdown();
             pool.awaitTermination(10, TimeUnit.MINUTES);
+
+            socketPool.shutdown();
+            socketPool.awaitTermination(10, TimeUnit.MINUTES);
 
         } catch (Exception ex) {
             ex.printStackTrace();

@@ -39,16 +39,13 @@ public class DecryptionTask implements Callable {
 
             targetFile.seek(destStartingByte);
             int numbersInBuffer = buffer[0].length / SHARE_SIZE;
-            //show(numbersInBuffer);
 
             BigInteger[] shares = new BigInteger[NEEDED_SHARES];
 
             for (int i = 0; i<numbersInBuffer; i++) {
                 // reconstruct number
-
                 for (int j = 0; j < NEEDED_SHARES; j++) {
-                    //if (lastBuffer) show(i);
-                    byte[] oneNumber = Arrays.copyOfRange(buffer[j], i * SHARE_SIZE, (i +1) * SHARE_SIZE);
+                    byte[] oneNumber = Arrays.copyOfRange(buffer[j], i * SHARE_SIZE, (i + 1) * SHARE_SIZE);
                     BigInteger yValue = new BigInteger(1, oneNumber);
                     shares[j] = yValue;
                 }

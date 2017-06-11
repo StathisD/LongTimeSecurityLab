@@ -1,8 +1,5 @@
 package de.tu_darmstadt;
 
-import de.tu_darmstadt.Decryption.DecryptionTask;
-import de.tu_darmstadt.Encryption.EncryptionTask;
-
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
@@ -40,7 +37,7 @@ public class ExampleCode {
 
             long sourceStartingByte;
             long sourceEndingByte;
-            long destStartingByte = HEADER_LENGTH;
+            //long destStartingByte = HEADER_LENGTH;
 
             for (int i = 0; i < THREADS; i++) {
 
@@ -52,13 +49,13 @@ public class ExampleCode {
                     sourceEndingByte = TARGET_FILE_SIZE;
                 }
                 System.out.println("Starting Encryption Task with source: " + sourceStartingByte + " to " + sourceEndingByte);
-                System.out.println("Starting Encryption Task with dest: " + destStartingByte);
+                //System.out.println("Starting Encryption Task with dest: " + destStartingByte);
 
                 //EncryptionTask task = new EncryptionTask(sourceStartingByte, sourceEndingByte, destStartingByte);
                 //pool.submit(task);
 
                 long numbers = (sourceEndingByte - sourceStartingByte) / BLOCK_SIZE;
-                destStartingByte += numbers * SHARE_SIZE;
+                //destStartingByte += numbers * SHARE_SIZE;
 
             }
 
@@ -106,21 +103,21 @@ public class ExampleCode {
 
             for (int i = 0; i < THREADS; i++) {
 
-                if (i < THREADS - 1) {
+                /*if (i < THREADS - 1) {
                     sourceStartingByte = i * CHUNK_SIZE + HEADER_LENGTH;
                     sourceEndingByte = (i + 1) * CHUNK_SIZE + HEADER_LENGTH;
                 } else {
                     sourceStartingByte = i * CHUNK_SIZE + HEADER_LENGTH;
                     sourceEndingByte = SHARES_FILE_SIZE_WITH_HEADER;
-                }
-                show("Starting Decryption Task with source: " + sourceStartingByte + " to " + sourceEndingByte);
+                }*/
+                // show("Starting Decryption Task with source: " + sourceStartingByte + " to " + sourceEndingByte);
                 show("Starting Decryption Task with dest: " + destStartingByte);
 
                // DecryptionTask task = new DecryptionTask(sourceStartingByte, sourceEndingByte, destStartingByte);
                 //pool.submit(task);
 
-                long numbers = (sourceEndingByte - sourceStartingByte) / SHARE_SIZE;
-                destStartingByte += numbers * BLOCK_SIZE;
+                //long numbers = (sourceEndingByte - sourceStartingByte) / SHARE_SIZE;
+                // destStartingByte += numbers * BLOCK_SIZE;
 
             }
             pool.shutdown();
@@ -190,9 +187,9 @@ class EncryptionTaskExample implements Runnable {
 
                     for (int x = 0; x < SHAREHOLDERS; x++) {
                         BigInteger xValue = BigInteger.valueOf(x + 1);
-                        BigInteger yValue = polynomial.evaluate(xValue);
-                        byteShare = fixLength(yValue.toByteArray(), SHARE_SIZE);
-                        System.arraycopy(byteShare, 0, encryptedData[x], i * SHARE_SIZE, byteShare.length);
+                        //BigInteger yValue = polynomial.evaluate(xValue);
+                        //byteShare = fixLength(yValue.toByteArray(), SHARE_SIZE);
+                        //System.arraycopy(byteShare, 0, encryptedData[x], i * SHARE_SIZE, byteShare.length);
                     }
                 }
                 for (int j = 0; j < SHAREHOLDERS; j++) {
@@ -233,10 +230,10 @@ final class ParametersExample {
         Parameters.MOD_LENGTH = BITS + 8;
         Parameters.SHARE_SIZE = MOD_LENGTH / 8;
         Parameters.THREADS = Runtime.getRuntime().availableProcessors();
-        Parameters.HEADER_LENGTH = HEADER + SHARE_SIZE;
+        //Parameters.HEADER_LENGTH = HEADER + SHARE_SIZE;
         Parameters.TARGET_FILE_SIZE = TARGET_FILE_SIZE;
         long x = (long) Math.ceil(TARGET_FILE_SIZE * 1.0 / BLOCK_SIZE);
-        Parameters.SHARES_FILE_SIZE_WITHOUT_HEADER = x * SHARE_SIZE;
+        Parameters.SHARES_FILE_SIZE = x * SHARE_SIZE;
         Parameters.SHARES_FILE_SIZE_WITH_HEADER = x * SHARE_SIZE + HEADER_LENGTH;
         long chunkSize;
         int maxPossibleBuffer;

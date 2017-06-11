@@ -6,8 +6,6 @@ package de.tu_darmstadt.Encryption;
 
 import de.tu_darmstadt.BigIntegerPolynomial;
 
-import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
@@ -26,7 +24,6 @@ public class EncryptionTask implements Callable<byte[][]> {
 
     @Override
     public byte[][] call() {
-        //show("Buffer received:" + buffer.length);
         int numbersInBuffer = (int) Math.ceil(buffer.length * 1.0 / BLOCK_SIZE);
         byte[][] encryptedData = new byte[SHAREHOLDERS][numbersInBuffer * SHARE_SIZE];
         byte[] oneNumber;
@@ -43,16 +40,30 @@ public class EncryptionTask implements Callable<byte[][]> {
             //encrypt
             BigIntegerPolynomial polynomial = new BigIntegerPolynomial(NEEDED_SHARES - 1, MODULUS, number);
 
-            byte[] byteShare;
+            byte[] byteShare = new byte[SHARE_SIZE];
 
             for (int x = 0; x < SHAREHOLDERS; x++) {
                 BigInteger xValue = BigInteger.valueOf(x + 1);
-                BigInteger yValue = polynomial.evaluate(xValue);
-                byteShare = fixLength(yValue.toByteArray(), SHARE_SIZE);
+                BigInteger yValue = polynomial.evaluatePolynom(xValue);
+
+                if (VERIFIABILITY) {
+
+                    BigInteger shareCommitment = polynomial.G.evaluatePolynom(xValue);
+
+                    byte[] bytes = fixLength(polynomial.commitment.toByteArray(), MOD_SIZE);
+                    System.arraycopy(bytes, 0, byteShare, 0, MOD_SIZE);
+                    bytes = fixLength(shareCommitment.toByteArray(), MOD_SIZE);
+                    System.arraycopy(bytes, 0, byteShare, MOD_SIZE, MOD_SIZE);
+                    bytes = fixLength(yValue.toByteArray(), MOD_SIZE);
+                    System.arraycopy(bytes, 0, byteShare, 2 * MOD_SIZE, MOD_SIZE);
+                    //show(i);
+                } else {
+                    byteShare = fixLength(yValue.toByteArray(), SHARE_SIZE);
+                }
+
                 System.arraycopy(byteShare, 0, encryptedData[x], i * SHARE_SIZE, byteShare.length);
             }
         }
-        //show("Buffer giving: " +encryptedData[0].length);
         return encryptedData;
     }
 }

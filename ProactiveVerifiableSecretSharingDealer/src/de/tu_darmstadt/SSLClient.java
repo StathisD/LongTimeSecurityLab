@@ -5,10 +5,9 @@ package de.tu_darmstadt;
  */
 
 import javax.net.ssl.SSLSocketFactory;
-import java.io.*;
-import java.math.BigInteger;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.net.Socket;
-
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -20,22 +19,21 @@ import static de.tu_darmstadt.Parameters.*;
 
 public class SSLClient implements Runnable{
     private static String address = "localhost";
+    private static SSLSocketFactory sslSocketFactory;
+    public final LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
+    int xValue;
     private int port;
     private int mode;
-    int xValue;
     private Socket socket;
     private DataOutputStream out;
     private DataInputStream in;
-    public final LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
-
-    private static SSLSocketFactory sslSocketFactory;
 
     private SSLClient(int port, int mode){
         this.port = port;
         this.mode = mode;
     }
 
-    static void openNewConnections(int mode) {
+    static ExecutorService openNewConnections(int mode) {
         try {
             System.setProperty("javax.net.ssl.trustStore", "/media/stathis/9AEA2384EA235BAF/keystore.jks");
             System.setProperty("javax.net.ssl.trustStorePassword", "123456");
@@ -60,8 +58,10 @@ public class SSLClient implements Runnable{
                 pool.submit(sslClients[i]);
             }
             pool.shutdown();
+            return pool;
         } catch (Exception e) {
             Logger.getLogger(SSLClient.class.getName());
+            return null;
         }
     }
 
@@ -92,17 +92,25 @@ public class SSLClient implements Runnable{
     private void sendShares(){
         try{
             long dataSent = 0;
-            out.writeLong(SHARES_FILE_SIZE_WITHOUT_HEADER);
+
+            out.writeLong(SHARES_FILE_SIZE);
             out.writeInt(port % 8000);
             out.writeInt(SHARE_SIZE);
-            out.write(fixLength(MODULUS.toByteArray(), SHARE_SIZE));
+            out.write(fixLength(MODULUS.toByteArray(), MOD_SIZE));
 
-            while (dataSent != SHARES_FILE_SIZE_WITHOUT_HEADER) {
+
+            if (VERIFIABILITY) {
+                out.write(fixLength(BigIntegerPolynomial.g.toByteArray(), MOD_SIZE));
+                out.write(fixLength(BigIntegerPolynomial.h.toByteArray(), MOD_SIZE));
+            }
+
+            while (dataSent != SHARES_FILE_SIZE) {
                 byte[] buffer = queue.poll(10, TimeUnit.MINUTES);
                 out.write(buffer);
-                //show("Socket " + (port%8000) + " sent " + buffer.length + " data");
+                show("Socket " + (port % 8000) + " sent " + buffer.length + " data");
                 dataSent += buffer.length;
             }
+
             int result = in.readInt();
             if (result == 0){
                 show("Share File " + (port % 8000) + " sent successfully");
@@ -120,13 +128,14 @@ public class SSLClient implements Runnable{
 
             xValue = in.readInt();
 
-            while (dataReceived != SHARES_FILE_SIZE_WITHOUT_HEADER) {
+            while (dataReceived != SHARES_FILE_SIZE) {
                 int bufferSize = 0;
-                int limit = (int) Math.min(BUFFER_SIZE, SHARES_FILE_SIZE_WITHOUT_HEADER - dataReceived );
+                int limit = (int) Math.min(BUFFER_SIZE, SHARES_FILE_SIZE - dataReceived);
                 byte[] encryptedData = new byte[limit ];
                 while(bufferSize < limit ){
                     byte[] buffer = new byte[limit  - bufferSize];
                     int bytesRead = in.read(buffer);
+                    //show("Socket " + (port%8000) + " received " + bytesRead + " data");
                     System.arraycopy(buffer, 0, encryptedData, bufferSize, bytesRead);
                     bufferSize += bytesRead;
                 }
@@ -135,8 +144,8 @@ public class SSLClient implements Runnable{
                 dataReceived += bufferSize;
             }
             int status = in.readInt();
-            if (dataReceived == SHARES_FILE_SIZE_WITHOUT_HEADER && status ==0){
-                show("Share File " + (xValue-1) + " received successfully");
+            if (dataReceived == SHARES_FILE_SIZE && status == 0) {
+                show("Share File " + (xValue) + " received successfully");
 
             }else{
                 show("ERROR: Share File " + (xValue-1) + " could not be received");
