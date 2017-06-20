@@ -6,6 +6,7 @@ package de.tu_darmstadt.Encryption;
 
 import de.tu_darmstadt.BigIntegerPolynomial;
 
+import javax.xml.bind.DatatypeConverter;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
@@ -14,7 +15,6 @@ import static de.tu_darmstadt.Parameters.*;
 
 
 public class EncryptionTask implements Callable<byte[][]> {
-
 
     private byte[] buffer;
 
@@ -27,7 +27,6 @@ public class EncryptionTask implements Callable<byte[][]> {
         int numbersInBuffer = (int) Math.ceil(buffer.length * 1.0 / BLOCK_SIZE);
         byte[][] encryptedData = new byte[SHAREHOLDERS][numbersInBuffer * SHARE_SIZE];
         byte[] oneNumber;
-
         for (int i = 0; i < numbersInBuffer; i++) {
             if ((i + 1) * BLOCK_SIZE <= buffer.length) {
                 oneNumber = Arrays.copyOfRange(buffer, i * BLOCK_SIZE, (i + 1) * BLOCK_SIZE);
@@ -47,23 +46,40 @@ public class EncryptionTask implements Callable<byte[][]> {
                 BigInteger yValue = polynomial.evaluatePolynom(xValue);
 
                 if (VERIFIABILITY) {
-
+                    byte[] bytes;
+                    for (int j = 0; j < polynomial.commitments.length; j++) {
+                        bytes = fixLength(polynomial.commitments[j].toByteArray(), MOD_SIZE);
+                        System.arraycopy(bytes, 0, byteShare, j*MOD_SIZE, MOD_SIZE);
+                    }
                     BigInteger shareCommitment = polynomial.G.evaluatePolynom(xValue);
-
-                    byte[] bytes = fixLength(polynomial.commitment.toByteArray(), MOD_SIZE);
-                    System.arraycopy(bytes, 0, byteShare, 0, MOD_SIZE);
                     bytes = fixLength(shareCommitment.toByteArray(), MOD_SIZE);
-                    System.arraycopy(bytes, 0, byteShare, MOD_SIZE, MOD_SIZE);
+                    System.arraycopy(bytes, 0, byteShare, (NEEDED_SHARES )* MOD_SIZE, MOD_SIZE);
                     bytes = fixLength(yValue.toByteArray(), MOD_SIZE);
-                    System.arraycopy(bytes, 0, byteShare, 2 * MOD_SIZE, MOD_SIZE);
-                    //show(i);
+                    System.arraycopy(bytes, 0, byteShare, (NEEDED_SHARES + 1) * MOD_SIZE, MOD_SIZE);
+
+                    //Check
+                    BigInteger[] publicCommitments = new BigInteger[NEEDED_SHARES];
+                    for (int j = 0; j < NEEDED_SHARES; j++) {
+                        bytes = Arrays.copyOfRange(byteShare,j*MOD_SIZE, (j+1)*MOD_SIZE);
+                        publicCommitments[j] = new BigInteger(1, bytes);
+                    }
+
+                    bytes = Arrays.copyOfRange(byteShare, (NEEDED_SHARES)*MOD_SIZE, (NEEDED_SHARES + 1)*MOD_SIZE);
+                    shareCommitment = new BigInteger(1, bytes);
+                    bytes = Arrays.copyOfRange(byteShare, (NEEDED_SHARES + 1)*MOD_SIZE, (NEEDED_SHARES + 2)*MOD_SIZE);
+                    BigInteger share = new BigInteger(1, bytes);
+
+                    boolean status = BigIntegerPolynomial.verifyCommitment(xValue, share, shareCommitment, publicCommitments, MODULUS);
+                    show(status);
                 } else {
                     byteShare = fixLength(yValue.toByteArray(), SHARE_SIZE);
                 }
 
                 System.arraycopy(byteShare, 0, encryptedData[x], i * SHARE_SIZE, byteShare.length);
             }
+
         }
+
         return encryptedData;
     }
 }

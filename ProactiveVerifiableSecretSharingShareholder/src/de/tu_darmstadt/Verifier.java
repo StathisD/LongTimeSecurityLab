@@ -1,6 +1,5 @@
 package de.tu_darmstadt;
 
-import java.sql.Timestamp;
 import java.util.concurrent.*;
 
 import static de.tu_darmstadt.Parameters.THREADS;
@@ -11,10 +10,10 @@ import static de.tu_darmstadt.Parameters.show;
  * Created by Stathis on 6/11/17.
  */
 public class Verifier extends Thread{
-    SSLShareHolder sslShareHolder;
+    ServerListener serverListener;
 
-    public Verifier(SSLShareHolder sslShareHolder){
-        this.sslShareHolder = sslShareHolder;
+    public Verifier(ServerListener serverListener){
+        this.serverListener = serverListener;
     }
 
     public void run(){
@@ -30,9 +29,9 @@ public class Verifier extends Thread{
 
                 for (int i = 0; i < THREADS; i++) {
 
-                    buffer = sslShareHolder.queue.poll(10, TimeUnit.MINUTES);
+                    buffer = serverListener.queue.poll(10, TimeUnit.MINUTES);
 
-                    VerificationTask task = new VerificationTask(buffer, sslShareHolder.xValue);
+                    VerificationTask task = new VerificationTask(buffer, serverListener.xValue);
                     futures[i]= pool.submit(task);
 
                     processed += buffer.length;

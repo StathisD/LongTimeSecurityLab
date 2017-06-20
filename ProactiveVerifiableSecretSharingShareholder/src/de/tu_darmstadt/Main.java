@@ -1,9 +1,8 @@
 package de.tu_darmstadt;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+
+import java.io.File;
+
 
 import static de.tu_darmstadt.Parameters.*;
 
@@ -25,9 +24,13 @@ public class Main {
 
             switch (input) {
                 case 1:
-                    SSLShareHolder.startListeningForConnections();
+                    ServerListener.startListeningForConnections();
             }*/
-            SSLShareHolder.startListeningForConnections();
+
+            Database.initiateDb();
+
+            ServerListener.startListeningForConnections();
+
 
 
         /*Timestamp start = new Timestamp(System.currentTimeMillis());
@@ -42,6 +45,8 @@ public class Main {
         }
 
     }
+
+
 
 
 }

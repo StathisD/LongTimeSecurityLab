@@ -41,9 +41,9 @@ public class VerificationTask implements Callable {
                 bytes = Arrays.copyOfRange(oneNumber, 2*MOD_SIZE, 3*MOD_SIZE);
                 BigInteger share = new BigInteger(1, bytes);
 
-                boolean status = BigIntegerPolynomial.verifyCommitment(BigInteger.valueOf(xValue), share, shareCommitment, publicCommitment, MODULUS);
+                //boolean status = BigIntegerPolynomial.verifyCommitment(BigInteger.valueOf(xValue), share, shareCommitment, publicCommitment, MODULUS);
 
-                if (!status) throw new Exception("Not Valid Share detected");
+                //if (!status) throw new Exception("Not Valid Share detected");
 
             }
             return 0;

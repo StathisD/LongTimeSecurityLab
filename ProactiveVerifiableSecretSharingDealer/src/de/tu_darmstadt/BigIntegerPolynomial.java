@@ -3,6 +3,9 @@ package de.tu_darmstadt;
 import java.math.BigInteger;
 import java.util.Random;
 
+import static de.tu_darmstadt.Parameters.*;
+
+
 /**
  * Created by stathis on 6/3/17.
  */
@@ -12,7 +15,7 @@ public class BigIntegerPolynomial {
     static BigInteger g;
     static BigInteger h;
     private static BigInteger[] lagrangeCoefficients;
-    public BigInteger commitment;
+    public BigInteger[] commitments;
     public BigIntegerPolynomial G;
     private BigInteger[] coefficients;
     private int degree;
@@ -25,35 +28,32 @@ public class BigIntegerPolynomial {
     }
 
     public BigIntegerPolynomial(int degree, BigInteger modulus, BigInteger a0) {
+        a0 = a0.mod(modulus);
         this.degree = degree;
         this.modulus = modulus;
         coefficients = new BigInteger[degree + 1];
-        BigInteger[] commitments = new BigInteger[degree + 1];
+        commitments = new BigInteger[degree + 1];
         BigInteger[] commitmentSeeds = new BigInteger[degree + 1];
 
         coefficients[0] = a0;
-
-        BigInteger t = (new BigInteger(Parameters.MOD_LENGTH, new Random())).mod(modulus);
-        commitmentSeeds[0] = t;
-
-        commitments[0] = computeCommitment(a0, t, modulus);
+        if(VERIFIABILITY){
+            BigInteger t = (new BigInteger(Parameters.MOD_LENGTH, new Random())).mod(modulus);
+            commitmentSeeds[0] = t;
+            commitments[0] = computeCommitment(a0, t, modulus);
+        }
 
         for (int i = 1; i <= degree; i++) {
             BigInteger ai = (new BigInteger(Parameters.MOD_LENGTH, new Random())).mod(modulus);
             coefficients[i] = ai;
-            BigInteger gi = (new BigInteger(Parameters.MOD_LENGTH, new Random())).mod(modulus);
-            commitmentSeeds[i] = gi;
-            commitments[i] = computeCommitment(ai, gi, modulus);
+            if (VERIFIABILITY){
+                BigInteger gi = (new BigInteger(Parameters.MOD_LENGTH, new Random())).mod(modulus);
+                commitmentSeeds[i] = gi;
+                commitments[i] = computeCommitment(ai, gi, modulus);
+            }
         }
-
-        this.G = new BigIntegerPolynomial(commitmentSeeds, modulus);
-
-        commitment = BigInteger.ONE;
-        for (int i = 0; i < commitments.length; i++) {
-            commitment = commitment.multiply(commitments[i]);
+        if (VERIFIABILITY){
+            this.G = new BigIntegerPolynomial(commitmentSeeds, modulus);
         }
-        commitment = commitment.mod(modulus);
-
     }
 
     public static BigInteger interpolate(BigInteger[] points, BigInteger modulus) {
@@ -82,12 +82,19 @@ public class BigIntegerPolynomial {
     }
 
     public static BigInteger computeCommitment(BigInteger a, BigInteger b, BigInteger modulus) {
-        return g.modPow(a, modulus).multiply(h.modPow(b, modulus)).mod(modulus);
+        return (g.modPow(a, modulus)).multiply(h.modPow(b, modulus)).mod(modulus);
     }
 
-    public static boolean verifyCommitment(BigInteger shareIndex, BigInteger share, BigInteger shareCommitment, BigInteger publicCommitment, BigInteger modulus) {
+    public static boolean verifyCommitment(BigInteger shareIndex, BigInteger share, BigInteger shareCommitment, BigInteger[] publicCommitments, BigInteger modulus) {
+
+        BigInteger commitment = BigInteger.ONE;
+        for (int i = 0; i < publicCommitments.length; i++) {
+            commitment = commitment.multiply(publicCommitments[i].modPow(shareIndex.modPow(BigInteger.valueOf(i),modulus),modulus));
+        }
+        commitment = commitment.mod(modulus);
+
         BigInteger com = computeCommitment(share, shareCommitment, modulus);
-        return com.equals(publicCommitment.modPow(shareIndex, modulus));
+        return com.equals(commitment);
     }
 
     public BigInteger evaluatePolynom(BigInteger value) {

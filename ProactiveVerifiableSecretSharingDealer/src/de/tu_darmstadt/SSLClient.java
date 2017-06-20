@@ -5,8 +5,8 @@ package de.tu_darmstadt;
  */
 
 import javax.net.ssl.SSLSocketFactory;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -22,14 +22,14 @@ public class SSLClient implements Runnable{
     private static SSLSocketFactory sslSocketFactory;
     public final LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
     int xValue;
-    private int port;
+    private ShareHolder shareHolder;
     private int mode;
     private Socket socket;
-    private DataOutputStream out;
-    private DataInputStream in;
+    private ObjectOutputStream out;
+    private ObjectInputStream in;
 
-    private SSLClient(int port, int mode){
-        this.port = port;
+    private SSLClient(ShareHolder shareHolder, int mode){
+        this.shareHolder = shareHolder;
         this.mode = mode;
     }
 
@@ -54,8 +54,9 @@ public class SSLClient implements Runnable{
             }
             sslClients = new SSLClient[numberThreads];
             for (int i = 0; i < numberThreads; i++) {
-                sslClients[i] = new SSLClient(ports[i], mode);
-                pool.submit(sslClients[i]);
+                SSLClient sslClient = new SSLClient(shareHolders[i], mode);
+                sslClients[i] = sslClient;
+                pool.submit(sslClient);
             }
             pool.shutdown();
             return pool;
@@ -68,10 +69,11 @@ public class SSLClient implements Runnable{
     @Override
     public void run() {
         try{
-            socket = sslSocketFactory.createSocket(address, port);
-            out = new DataOutputStream(socket.getOutputStream());
-            in = new DataInputStream(socket.getInputStream());
+            socket = sslSocketFactory.createSocket(address,shareHolder.getPort());
+            out = new ObjectOutputStream(socket.getOutputStream());
+            in = new ObjectInputStream(socket.getInputStream());
             out.writeInt(mode);
+            out.flush();
 
             switch (mode){
                 case 1:
@@ -92,30 +94,38 @@ public class SSLClient implements Runnable{
     private void sendShares(){
         try{
             long dataSent = 0;
-
+            while (xValue == 0){
+                Thread.sleep(100);
+            }
             out.writeLong(SHARES_FILE_SIZE);
-            out.writeInt(port % 8000);
-            out.writeInt(SHARE_SIZE);
-            out.write(fixLength(MODULUS.toByteArray(), MOD_SIZE));
+            out.writeInt(xValue);
 
+            out.writeObject(MODULUS);
+
+            out.writeBoolean(VERIFIABILITY);
+
+            out.writeObject(shareHolders);
+            out.flush();
 
             if (VERIFIABILITY) {
-                out.write(fixLength(BigIntegerPolynomial.g.toByteArray(), MOD_SIZE));
-                out.write(fixLength(BigIntegerPolynomial.h.toByteArray(), MOD_SIZE));
+                out.writeObject(BigIntegerPolynomial.g);
+                out.writeObject(BigIntegerPolynomial.h);
+                out.flush();
             }
 
             while (dataSent != SHARES_FILE_SIZE) {
                 byte[] buffer = queue.poll(10, TimeUnit.MINUTES);
-                out.write(buffer);
-                show("Socket " + (port % 8000) + " sent " + buffer.length + " data");
+                out.writeObject(buffer);
+                //show("Socket " + (port % 8000) + " sent " + buffer.length + " data");
                 dataSent += buffer.length;
+                out.flush();
             }
 
             int result = in.readInt();
             if (result == 0){
-                show("Share File " + (port % 8000) + " sent successfully");
+                show("StoredFile File " + (xValue) + " sent successfully");
             }else{
-                show("ERROR: Share File " + (port % 8000) + " could not be sent");
+                show("ERROR: StoredFile File " + (xValue) + " could not be sent");
             }
         } catch (Exception e) {
             Logger.getLogger(SSLClient.class.getName());
@@ -129,26 +139,18 @@ public class SSLClient implements Runnable{
             xValue = in.readInt();
 
             while (dataReceived != SHARES_FILE_SIZE) {
-                int bufferSize = 0;
-                int limit = (int) Math.min(BUFFER_SIZE, SHARES_FILE_SIZE - dataReceived);
-                byte[] encryptedData = new byte[limit ];
-                while(bufferSize < limit ){
-                    byte[] buffer = new byte[limit  - bufferSize];
-                    int bytesRead = in.read(buffer);
-                    //show("Socket " + (port%8000) + " received " + bytesRead + " data");
-                    System.arraycopy(buffer, 0, encryptedData, bufferSize, bytesRead);
-                    bufferSize += bytesRead;
-                }
-                if(encryptedData.length != BUFFER_SIZE) show(encryptedData.length);
-                queue.put(encryptedData);
-                dataReceived += bufferSize;
+                byte[] buffer = (byte[]) in.readObject();
+                //show("Socket " + (port%8000) + " received " + buffer.length + " data");
+                queue.put(buffer);
+                dataReceived += buffer.length;
             }
+
             int status = in.readInt();
             if (dataReceived == SHARES_FILE_SIZE && status == 0) {
-                show("Share File " + (xValue) + " received successfully");
+                show("StoredFile File " + (xValue) + " received successfully");
 
             }else{
-                show("ERROR: Share File " + (xValue-1) + " could not be received");
+                show("ERROR: StoredFile File " + (xValue) + " could not be received");
 
             }
 
