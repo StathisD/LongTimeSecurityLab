@@ -86,6 +86,7 @@ public class Main {
             }
             dbSemaphore.release();
 
+
             if (verifiability) {
                 BigIntegerPolynomial.g = new BigInteger(Parameters.MOD_LENGTH, new Random()).mod(MODULUS);
                 BigIntegerPolynomial.h = new BigInteger(Parameters.MOD_LENGTH, new Random()).mod(MODULUS);
@@ -96,29 +97,30 @@ public class Main {
             for (int i = 0; i<SHAREHOLDERS; i++){
                 sslClients[i].xValue = i + 1;
             }
-            /*BigInteger[] xValues = new BigInteger[NEEDED_SHARES];
-            for (int i = 0; i < NEEDED_SHARES; i++) {
+/*
+            BigInteger[] xValues = new BigInteger[SHAREHOLDERS];
+            for (int i = 0; i < SHAREHOLDERS; i++) {
                 xValues[i] = BigInteger.valueOf(i+1);
             }
 
             //compute Lagrange Coefficients
             BigIntegerPolynomial.computeLagrangeCoefficients(xValues, MODULUS);
 
-            /*BigInteger number = BigInteger.valueOf(144);
+            BigInteger number = BigInteger.valueOf(144);
 
             //encrypt
             BigIntegerPolynomial polynomial = new BigIntegerPolynomial(NEEDED_SHARES - 1, MODULUS, number);
 
             for (int x = 0; x < SHAREHOLDERS; x++) {
-                BigInteger xValue = BigInteger.valueOf(x + 1);
-                BigInteger yValue = polynomial.evaluatePolynom(xValue);
 
-                BigInteger shareCommitment = polynomial.G.evaluatePolynom(xValue);
+                BigInteger yValue = polynomial.evaluatePolynom(xValues[x]);
 
-                boolean status = BigIntegerPolynomial.verifyCommitment(xValue, yValue, shareCommitment, polynomial.commitments, MODULUS);
+                BigInteger shareCommitment = polynomial.G.evaluatePolynom(xValues[x]);
+
+                boolean status = BigIntegerPolynomial.verifyCommitment(xValues[x], yValue, shareCommitment, polynomial.commitments, MODULUS);
                 show(status);
-            }*/
-
+            }
+*/
             ExecutorService pool = Executors.newFixedThreadPool(THREADS);
             long encrypted = 0;
             long processed = 0;
@@ -149,7 +151,7 @@ public class Main {
                 }
 
                 for (int i = 0; i <= numberOfThreads; i++) {
-                    byte[][] taskBuffer = (byte[][]) futures[i].get();
+                    byte[][] taskBuffer = (byte [][]) futures[i].get();
                     encrypted += taskBuffer[0].length;
 
                     for (int j = 0; j < SHAREHOLDERS; j++) {

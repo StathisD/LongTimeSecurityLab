@@ -1,6 +1,7 @@
 package de.tu_darmstadt;
 
 import java.math.BigInteger;
+import java.security.SecureRandom;
 import java.util.Random;
 
 import static de.tu_darmstadt.Parameters.*;
@@ -37,18 +38,18 @@ public class BigIntegerPolynomial {
 
         coefficients[0] = a0;
         if(VERIFIABILITY){
-            BigInteger t = (new BigInteger(Parameters.MOD_LENGTH, new Random())).mod(modulus);
+            BigInteger t = (new BigInteger(Parameters.MOD_LENGTH, new SecureRandom())).mod(modulus);
             commitmentSeeds[0] = t;
             commitments[0] = computeCommitment(a0, t, modulus);
         }
 
         for (int i = 1; i <= degree; i++) {
-            BigInteger ai = (new BigInteger(Parameters.MOD_LENGTH, new Random())).mod(modulus);
+            BigInteger ai = (new BigInteger(Parameters.MOD_LENGTH, new SecureRandom())).mod(modulus);
             coefficients[i] = ai;
             if (VERIFIABILITY){
                 BigInteger gi = (new BigInteger(Parameters.MOD_LENGTH, new Random())).mod(modulus);
                 commitmentSeeds[i] = gi;
-                commitments[i] = computeCommitment(ai, gi, modulus);
+                commitments[i] = computeCommitment(ai, gi, modulus); // p
             }
         }
         if (VERIFIABILITY){
