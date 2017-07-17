@@ -8,22 +8,19 @@ import javax.net.ssl.SSLServerSocketFactory;
 import java.io.*;
 import java.math.BigInteger;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import static de.tu_darmstadt.Parameters.*;
 
-public class ServerListener implements Runnable{
+public class ServerListener extends SSLConnection implements Runnable{
 
     private int port;
-    private Socket socket;
     int xValue;
-    private ObjectOutputStream out;
-    private ObjectInputStream in;
     static ExecutorService pool;
 
     public final LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
@@ -92,6 +89,8 @@ public class ServerListener implements Runnable{
         try{
             long dataReceived = 0;
 
+            String fileName = (String) in.readObject();
+
             long shareFileSize = in.readLong();
 
             xValue = in.readInt();
@@ -113,16 +112,18 @@ public class ServerListener implements Runnable{
 
             initializeParameters( modulus.bitLength(), shareFileSize, verifiability);
 
-            Share share = new Share("dummy"+xValue, xValue, socket.getInetAddress().toString(), socket.getPort(), modulus, 5,3);
+            Share share = new Share(fileName + xValue, xValue, socket.getInetAddress().toString(), socket.getPort(), modulus, 5,3);
             dbSemaphore.acquire();
             sharesDao.create(share);
+            int j = 1;
             for (ShareHolder s : shareHolders){
-                shareholdersDao.createIfNotExists(s);
-                ManyToMany manyToMany = new ManyToMany(s, share);
+                ShareHolder shareholder = shareholdersDao.queryForId(s.getIpAddress());
+                ManyToMany manyToMany = new ManyToMany(shareholder, share, BigInteger.valueOf(j));
                 manyToManyDao.createIfNotExists(manyToMany);
+                j++;
             }
             dbSemaphore.release();
-            RandomAccessFile shareFile = new RandomAccessFile(FILE_PATH + (xValue-1), "rw");
+            RandomAccessFile shareFile = new RandomAccessFile(fileName + xValue, "rw");
             shareFile.seek(0L);
 
             if (verifiability){
@@ -173,14 +174,17 @@ public class ServerListener implements Runnable{
 
     private void sendShare(){
         try{
+
+            String fileName = (String) in.readObject();
+
             dbSemaphore.acquire();
-            Share share = sharesDao.queryForId("dummy"+(port%8000));
+            Share share = sharesDao.queryForId(fileName + port % 8000);
             dbSemaphore.release();
 
             xValue = share.getxValue();
 
 
-            RandomAccessFile shareFile = new RandomAccessFile(FILE_PATH + ((port%8000)-1), "r");
+            RandomAccessFile shareFile = new RandomAccessFile(fileName + port % 8000, "r");
             shareFile.seek(0L);
 
             long shareFileSize = shareFile.length();
@@ -218,9 +222,48 @@ public class ServerListener implements Runnable{
     }
 
     private void renewShare(){
-        BigIntegerPolynomial d = new BigIntegerPolynomial(NEEDED_SHARES - 1, MODULUS, BigInteger.ZERO);
-        for (int j = 0; j<SHAREHOLDERS; j++){
-            BigInteger uj = d.evaluatePolynom(BigInteger.valueOf(j+1));
+        try{
+            Share receivedShare = (Share) in.readObject();
+            dbSemaphore.acquire();
+            Share localShare = sharesDao.queryForId(receivedShare.getName());
+            dbSemaphore.release();
+
+            if (Math.abs(localShare.getLastRenewed()-System.currentTimeMillis()) >= (timeSlot-1000*60*60*24) && !localShare.getRenewStatus().equals("in_progress")){
+                localShare.setRenewStatus("in_progress");
+                dbSemaphore.acquire();
+                sharesDao.update(localShare);
+                dbSemaphore.release();
+                out.writeInt(0);
+                out.flush();
+            }else{
+                out.writeInt(1);
+                out.flush();
+                return;
+            }
+
+            String ipAddress = socket.getInetAddress().toString();
+            dbSemaphore.acquire();
+            ShareHolder shareHolder = shareholdersDao.queryForId(ipAddress);
+            dbSemaphore.release();
+            RenewShareTask.sslConnectionMap.put(shareHolder, this);
+
+            new RenewShareTask(localShare).start();
+
+            long currentNumber;
+            while ((currentNumber = numberQueue.poll(10, TimeUnit.MINUTES)) == in.readLong()) {
+                BigInteger localNumber = (BigInteger) in.readObject();
+                RenewShareTask.localNumberMap.put(shareHolder, localNumber);
+                out.writeObject(RenewShareTask.remoteNumberMap.get(shareHolder));
+                out.flush();
+            }
+
+
+
+
+
+
+        }catch(Exception e){
+            e.printStackTrace();
         }
     }
 

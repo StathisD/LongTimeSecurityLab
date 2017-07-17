@@ -28,6 +28,12 @@ public class Share {
     private int numberOfShareholders;
     @DatabaseField
     private int neededShares;
+    // needs_renewal, in_progress, renewed
+    @DatabaseField
+    private String renewStatus;
+    @DatabaseField
+    private long lastRenewed;
+
 
     public Share(){}
 
@@ -39,6 +45,8 @@ public class Share {
         this.modulus = modulus;
         this.numberOfShareholders = numberOfShareholders;
         this.neededShares = neededShares;
+        this.renewStatus = "needs_renewal";
+        this.lastRenewed = 0;
     }
 
     public String getName(){
@@ -75,5 +83,21 @@ public class Share {
 
     public void setNumberOfShareholders(int numberOfShareholders) {
         this.numberOfShareholders = numberOfShareholders;
+    }
+
+    public String getRenewStatus() {
+        return renewStatus;
+    }
+
+    public void setRenewStatus(String renewStatus) {
+        this.renewStatus = renewStatus;
+    }
+
+    public long getLastRenewed() {
+        return lastRenewed;
+    }
+
+    public void setLastRenewed(long lastRenewed) {
+        this.lastRenewed = lastRenewed;
     }
 }

@@ -5,20 +5,16 @@ package de.tu_darmstadt;
  */
 
 import javax.net.ssl.SSLSocketFactory;
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.logging.Logger;
 
 import static de.tu_darmstadt.Parameters.*;
 
-
 public class SSLClient implements Runnable{
-    private static String address = "localhost";
     private static SSLSocketFactory sslSocketFactory;
     public final LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
     int xValue;
@@ -69,7 +65,7 @@ public class SSLClient implements Runnable{
     @Override
     public void run() {
         try{
-            socket = sslSocketFactory.createSocket(address,shareHolder.getPort());
+            socket = sslSocketFactory.createSocket("localhost", shareHolder.getPort());
             out = new ObjectOutputStream(socket.getOutputStream());
             in = new ObjectInputStream(socket.getInputStream());
             out.writeInt(mode);
@@ -97,6 +93,8 @@ public class SSLClient implements Runnable{
             while (xValue == 0){
                 Thread.sleep(100);
             }
+
+            out.writeObject(FILE_PATH);
             out.writeLong(SHARES_FILE_SIZE);
             out.writeInt(xValue);
 
@@ -136,6 +134,8 @@ public class SSLClient implements Runnable{
         try{
             long dataReceived = 0;
 
+            out.writeObject(FILE_PATH);
+
             xValue = in.readInt();
 
             while (dataReceived != SHARES_FILE_SIZE) {
@@ -158,4 +158,7 @@ public class SSLClient implements Runnable{
             Logger.getLogger(SSLClient.class.getName());
         }
     }
+
+
+
 }

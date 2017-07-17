@@ -1,10 +1,7 @@
 package de.tu_darmstadt;
 
-
-import java.io.File;
-
-
 import static de.tu_darmstadt.Parameters.*;
+
 
 
 public class Main {
@@ -28,6 +25,7 @@ public class Main {
             }*/
 
             Database.initiateDb();
+            new RenewShareThread().start();
 
             ServerListener.startListeningForConnections();
 

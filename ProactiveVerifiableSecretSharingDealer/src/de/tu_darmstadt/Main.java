@@ -247,7 +247,7 @@ public class Main {
         try{
             dbSemaphore.acquire();
             for (int i = 1; i<=10; i++){
-                ShareHolder shareHolder = new ShareHolder("localhost", 8000+i);
+                ShareHolder shareHolder = new ShareHolder("localhost"+i, 8000+i);
                 shareholdersDao.createIfNotExists(shareHolder);
             }
             dbSemaphore.release();
