@@ -10,6 +10,7 @@ import com.j256.ormlite.table.TableUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.Semaphore;
@@ -37,11 +38,17 @@ public class Database {
             shareholdersDao = DaoManager.createDao(connectionSource, ShareHolder.class);
             storedFileDao = DaoManager.createDao(connectionSource, StoredFile.class);
             manyToManyDao = DaoManager.createDao(connectionSource, ManyToMany.class);
+            pedersenParametersDao = DaoManager.createDao(connectionSource, PedersenParameters.class);
 
             if (!new File("storedFiles.db").isFile()) {
                 TableUtils.createTable(connectionSource, ShareHolder.class);
                 TableUtils.createTable(connectionSource, StoredFile.class);
                 TableUtils.createTable(connectionSource, ManyToMany.class);
+                TableUtils.createTable(connectionSource, PedersenParameters.class);
+                int log2p = 3072, log2q = 512;
+                PedersenParametersGenerator ppg = new PedersenParametersGenerator(log2p, log2q, 128, new SecureRandom());
+                PedersenParameters params = ppg.generateParameters();
+                pedersenParametersDao.createIfNotExists(params);
             }
             dbSemaphore = new Semaphore(1, true);
         }catch (SQLException e) {

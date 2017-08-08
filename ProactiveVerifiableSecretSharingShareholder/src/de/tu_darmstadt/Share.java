@@ -33,11 +33,13 @@ public class Share {
     private String renewStatus;
     @DatabaseField
     private long lastRenewed;
+    @DatabaseField
+    private long numbersInShare;
 
 
     public Share(){}
 
-    public Share(String name, int xValue, String sourceIp, int sourcePort, BigInteger modulus, int numberOfShareholders, int neededShares){
+    public Share(String name, int xValue, String sourceIp, int sourcePort, BigInteger modulus, int numberOfShareholders, int neededShares, long numbersInShare){
         this.name = name;
         this.xValue = xValue;
         this.sourceIp = sourceIp;
@@ -45,6 +47,7 @@ public class Share {
         this.modulus = modulus;
         this.numberOfShareholders = numberOfShareholders;
         this.neededShares = neededShares;
+        this.numbersInShare = numbersInShare;
         this.renewStatus = "needs_renewal";
         this.lastRenewed = 0;
     }
@@ -99,5 +102,13 @@ public class Share {
 
     public void setLastRenewed(long lastRenewed) {
         this.lastRenewed = lastRenewed;
+    }
+
+    public long getNumbersInShare() {
+        return numbersInShare;
+    }
+
+    public void setNumbersInShare(long numbersInShare) {
+        this.numbersInShare = numbersInShare;
     }
 }

@@ -1,5 +1,6 @@
 package de.tu_darmstadt;
 
+import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
@@ -12,40 +13,41 @@ import static de.tu_darmstadt.Parameters.*;
  */
 
 public class VerificationTask implements Callable {
-    private byte[] buffer;
+    private BigInteger[] buffer;
     private int xValue;
+    private long destStartingByte;
+    private  String fileName;
+    private int neededShares;
 
-
-    public VerificationTask(byte[] buffer, int xValue) {
+    public VerificationTask(int neededShares, String fileName, int xValue, BigInteger[] buffer, long destStartingByte) {
         this.buffer = buffer;
         this.xValue = xValue;
-
-
+        this.destStartingByte = destStartingByte;
+        this.fileName = fileName;
+        this.neededShares = neededShares;
     }
 
     @Override
     public Integer call() {
 
         try {
-            int numbersInBuffer = buffer.length / SHARE_SIZE;
+            RandomAccessFile shareFile = new RandomAccessFile(fileName + xValue, "rw");
+            shareFile.seek(destStartingByte);
 
-            for (int i = 0; i<numbersInBuffer; i++) {
-                // reconstruct number
 
-                byte[] oneNumber = Arrays.copyOfRange(buffer, i * SHARE_SIZE, (i+1) * SHARE_SIZE);
+            for (int i = 0; i< buffer.length; i= i + (neededShares+2)) {
 
-                byte[] bytes = Arrays.copyOfRange(oneNumber,0, MOD_SIZE);
-                BigInteger publicCommitment = new BigInteger(1, bytes);
-                bytes = Arrays.copyOfRange(oneNumber, MOD_SIZE, 2*MOD_SIZE);
-                BigInteger shareCommitment = new BigInteger(1, bytes);
-                bytes = Arrays.copyOfRange(oneNumber, 2*MOD_SIZE, 3*MOD_SIZE);
-                BigInteger share = new BigInteger(1, bytes);
+                BigInteger shareIndex = BigInteger.valueOf(xValue);
+                BigInteger share = buffer[i];
+                BigInteger shareCommitment = buffer[i+1];
+                BigInteger[] publicCommitments = Arrays.copyOfRange(buffer, i+2, i+2+neededShares);
 
-                //boolean status = BigIntegerPolynomial.verifyCommitment(BigInteger.valueOf(xValue), share, shareCommitment, publicCommitment, MODULUS);
+                boolean status = BigIntegerPolynomial.verifyCommitment(shareIndex, share, shareCommitment, publicCommitments, pedersenParameters.getP());
 
-                //if (!status) throw new Exception("Not Valid Share detected");
+                if (!status) throw new Exception("Not Valid Share detected");
 
             }
+            show("verification success");
             return 0;
         } catch (Exception e) {
             e.printStackTrace();

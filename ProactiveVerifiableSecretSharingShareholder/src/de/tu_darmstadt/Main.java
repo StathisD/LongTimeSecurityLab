@@ -25,6 +25,14 @@ public class Main {
             }*/
 
             Database.initiateDb();
+
+            dbSemaphore.acquire();
+            PedersenParameters params = pedersenParametersDao.queryForId("params");
+            dbSemaphore.release();
+            committer = new PedersenCommitter(params);
+            MODULUS = params.getQ();
+            pedersenParameters = params;
+
             new RenewShareThread().start();
 
             ServerListener.startListeningForConnections();

@@ -6,7 +6,6 @@ package de.tu_darmstadt.Decryption;
 
 import de.tu_darmstadt.BigIntegerPolynomial;
 
-import javax.xml.bind.DatatypeConverter;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.util.Arrays;

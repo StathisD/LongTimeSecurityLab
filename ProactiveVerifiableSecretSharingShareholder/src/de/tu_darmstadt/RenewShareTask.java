@@ -62,7 +62,7 @@ public class RenewShareTask{
             destinationFile.seek(0L);
             long targetFileSize = sourceFile.length();
 
-            initializeParameters((short) 1024, targetFileSize, 0, false);
+            initializeParameters(targetFileSize, 0, false);
 
             byte buffer[] = new byte[SHARE_SIZE];
             long numbersInShare = targetFileSize / SHARE_SIZE;

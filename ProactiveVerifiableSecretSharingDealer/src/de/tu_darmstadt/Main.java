@@ -4,54 +4,65 @@ import com.j256.ormlite.dao.CloseableIterator;
 import de.tu_darmstadt.Decryption.DecryptionTask;
 import de.tu_darmstadt.Encryption.EncryptionTask;
 
-import java.io.*;
+import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.sql.Timestamp;
-import java.util.*;
+import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static de.tu_darmstadt.Database.initiateDb;
+import static de.tu_darmstadt.Database.lookupShareHoldersForStoredFile;
 import static de.tu_darmstadt.Parameters.*;
-import static de.tu_darmstadt.Database.*;
-
 
 public class Main {
     private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
+        try {
+            FILE_PATH = args[0];
+            SHAREHOLDERS = Integer.parseInt(args[1]);
+            NEEDED_SHARES = Integer.parseInt(args[2]);
+            initiateDb();
 
-        FILE_PATH = args[0];
-        SHAREHOLDERS = Integer.parseInt(args[1]);
-        NEEDED_SHARES = Integer.parseInt(args[2]);
-        initiateDb();
+            dbSemaphore.acquire();
+            PedersenParameters params = pedersenParametersDao.queryForId("params");
+            dbSemaphore.release();
+            committer = new PedersenCommitter(params);
+            MODULUS = params.getQ();
+            pedersenParameters = params;
 
-        int input;
-        do {
-            show("Please specify what you want to do:");
-            show("(Type 1 for sharing a new file)");
-            show("(Type 2 for decrypting a File)");
-            show("(Type 3 to add a new ShareHolder)");
-            input = scanner.nextInt();
-        } while (input <= 0 || input > 3);
+            int input;
+            do {
+                show("Please specify what you want to do:");
+                show("(Type 1 for sharing a new file)");
+                show("(Type 2 for decrypting a File)");
+                show("(Type 3 to add a new ShareHolder)");
+                input = scanner.nextInt();
+            } while (input <= 0 || input > 3);
 
-        Timestamp start = new Timestamp(System.currentTimeMillis());
+            Timestamp start = new Timestamp(System.currentTimeMillis());
 
-        switch (input) {
-            case 1:
-                encryptFile(input);
-                break;
-            case 2:
-                decryptFile(input);
-                break;
-            case 3:
-                addShareHolder();
-                break;
+            switch (input) {
+                case 1:
+                    encryptFile(input);
+                    break;
+                case 2:
+                    decryptFile(input);
+                    break;
+                case 3:
+                    addShareHolder();
+                    break;
+            }
+
+            Timestamp end = new Timestamp(System.currentTimeMillis());
+            show(end.getTime() - start.getTime());
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-        Timestamp end = new Timestamp(System.currentTimeMillis());
-        show(end.getTime() - start.getTime());
     }
 
     private static void encryptFile(int mode) {
@@ -59,14 +70,12 @@ public class Main {
             RandomAccessFile sourceFile = new RandomAccessFile(FILE_PATH, "r");
             sourceFile.seek(0L);
             long targetFileSize = sourceFile.length();
-            int bits = 1024;
-            boolean verifiability = false;
+            boolean verifiability = true;
 
-            initializeParameters((short) bits, targetFileSize, 0, verifiability);
-
+            initializeParameters(targetFileSize, 0, verifiability);
 
             dbSemaphore.acquire();
-            StoredFile storedFile = new StoredFile(FILE_PATH, MODULUS, SHAREHOLDERS, NEEDED_SHARES, targetFileSize, bits);
+            StoredFile storedFile = new StoredFile(FILE_PATH, MODULUS, SHAREHOLDERS, NEEDED_SHARES, targetFileSize);
             storedFileDao.createIfNotExists(storedFile);
 
             CloseableIterator<ShareHolder> iterator = shareholdersDao.closeableIterator();
@@ -87,40 +96,12 @@ public class Main {
             dbSemaphore.release();
 
 
-            if (verifiability) {
-                BigIntegerPolynomial.g = new BigInteger(Parameters.MOD_LENGTH, new Random()).mod(MODULUS);
-                BigIntegerPolynomial.h = new BigInteger(Parameters.MOD_LENGTH, new Random()).mod(MODULUS);
-            }
-
             ExecutorService socketPool = SSLClient.openNewConnections(mode);
 
             for (int i = 0; i<SHAREHOLDERS; i++){
                 sslClients[i].xValue = i + 1;
             }
-/*
-            BigInteger[] xValues = new BigInteger[SHAREHOLDERS];
-            for (int i = 0; i < SHAREHOLDERS; i++) {
-                xValues[i] = BigInteger.valueOf(i+1);
-            }
 
-            //compute Lagrange Coefficients
-            BigIntegerPolynomial.computeLagrangeCoefficients(xValues, MODULUS);
-
-            BigInteger number = BigInteger.valueOf(144);
-
-            //encrypt
-            BigIntegerPolynomial polynomial = new BigIntegerPolynomial(NEEDED_SHARES - 1, MODULUS, number);
-
-            for (int x = 0; x < SHAREHOLDERS; x++) {
-
-                BigInteger yValue = polynomial.evaluatePolynom(xValues[x]);
-
-                BigInteger shareCommitment = polynomial.G.evaluatePolynom(xValues[x]);
-
-                boolean status = BigIntegerPolynomial.verifyCommitment(xValues[x], yValue, shareCommitment, polynomial.commitments, MODULUS);
-                show(status);
-            }
-*/
             ExecutorService pool = Executors.newFixedThreadPool(THREADS);
             long encrypted = 0;
             long processed = 0;
@@ -151,16 +132,18 @@ public class Main {
                 }
 
                 for (int i = 0; i <= numberOfThreads; i++) {
-                    byte[][] taskBuffer = (byte [][]) futures[i].get();
+                    BigInteger[][] taskBuffer = (BigInteger[][]) futures[i].get();
                     encrypted += taskBuffer[0].length;
 
                     for (int j = 0; j < SHAREHOLDERS; j++) {
-                        sslClients[j].queue.put(taskBuffer[j]);
+                        sslClients[j].numberQueue.put(taskBuffer[j]);
                     }
 
                 }
             }
-            if (encrypted != SHARES_FILE_SIZE) {
+            int numbersInFile = (int) Math.ceil(TARGET_FILE_SIZE * 1.0 / BLOCK_SIZE);
+            if (VERIFIABILITY) numbersInFile = numbersInFile * (NEEDED_SHARES + 2);
+            if (encrypted != numbersInFile) {
                 show("ERROR in File Encryption");
             } else {
                 show("File Encryption completed successfully");
@@ -185,7 +168,7 @@ public class Main {
 
             NEEDED_SHARES = storedFile.getNeededShares();
             MODULUS = storedFile.getModulus();
-            initializeParameters((short)storedFile.getBits(), storedFile.getFileSize(), 1, false);
+            initializeParameters(storedFile.getFileSize(), 1, false);
 
             ExecutorService socketPool = SSLClient.openNewConnections(mode);
 
@@ -197,8 +180,6 @@ public class Main {
                 }
                 xValues[i] = BigInteger.valueOf(sslClients[i].xValue);
             }
-
-
 
             //compute Lagrange Coefficients
             BigIntegerPolynomial.computeLagrangeCoefficients(xValues, MODULUS);
@@ -216,7 +197,7 @@ public class Main {
                 for (int i = 0; i < THREADS; i++) {
                     byte buffer[][] = new byte[NEEDED_SHARES][];
                     for (int j = 0; j < NEEDED_SHARES; j++) {
-                        buffer[j] = sslClients[j].queue.poll(10, TimeUnit.MINUTES);
+                        buffer[j] = sslClients[j].byteQueue.poll(10, TimeUnit.MINUTES);
                     }
                     int numbers = buffer[0].length / SHARE_SIZE;
                     DecryptionTask task = new DecryptionTask(buffer, destStartingByte);

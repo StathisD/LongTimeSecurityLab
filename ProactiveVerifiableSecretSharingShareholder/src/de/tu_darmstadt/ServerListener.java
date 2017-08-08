@@ -8,10 +8,7 @@ import javax.net.ssl.SSLServerSocketFactory;
 import java.io.*;
 import java.math.BigInteger;
 import java.net.ServerSocket;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -87,7 +84,7 @@ public class ServerListener extends SSLConnection implements Runnable{
 
     private void receiveShare(){
         try{
-            long dataReceived = 0;
+            long numbersReceived = 0;
 
             String fileName = (String) in.readObject();
 
@@ -95,69 +92,84 @@ public class ServerListener extends SSLConnection implements Runnable{
 
             xValue = in.readInt();
 
-            BigInteger modulus = (BigInteger) in.readObject();
-            setMODULUS(modulus);
-
             boolean verifiability = in.readBoolean();
 
             ShareHolder[] shareHolders = (ShareHolder[]) in.readObject();
 
-            if (verifiability)  {
-                shareFileSize = shareFileSize/3;
 
-                BigIntegerPolynomial.g = (BigInteger) in.readObject();
+            initializeParameters(shareFileSize,1, verifiability);
 
-                BigIntegerPolynomial.h = (BigInteger) in.readObject();
-            }
+            int numbersInFile = (int) Math.ceil(shareFileSize * 1.0 / MOD_SIZE);
 
-            initializeParameters( modulus.bitLength(), shareFileSize, verifiability);
-
-            Share share = new Share(fileName + xValue, xValue, socket.getInetAddress().toString(), socket.getPort(), modulus, 5,3);
             dbSemaphore.acquire();
-            sharesDao.create(share);
+            Share share = new Share(fileName + xValue, xValue, socket.getInetAddress().toString(), socket.getPort(), MODULUS, 5,3, numbersInFile);
             int j = 1;
-            for (ShareHolder s : shareHolders){
+            /*for (ShareHolder s : shareHolders){
                 ShareHolder shareholder = shareholdersDao.queryForId(s.getIpAddress());
                 ManyToMany manyToMany = new ManyToMany(shareholder, share, BigInteger.valueOf(j));
                 manyToManyDao.createIfNotExists(manyToMany);
                 j++;
-            }
+            }*/
+
+            sharesDao.createIfNotExists(share);
             dbSemaphore.release();
+
             RandomAccessFile shareFile = new RandomAccessFile(fileName + xValue, "rw");
             shareFile.seek(0L);
 
-            if (verifiability){
-                Verifier verifier = new Verifier(this);
-                verifier.start();
-                while (dataReceived != SHARES_FILE_SIZE) {
-                    int bufferSize = 0;
-                    int limit = (int) Math.min(BUFFER_SIZE, SHARES_FILE_SIZE - dataReceived );
-                    byte[] encryptedData = new byte[limit ];
-                    while(bufferSize < limit ){
-                        byte[] buffer = new byte[limit  - bufferSize];
-                        int bytesRead = in.read(buffer);
-                        show("Socket " + (port%8000) + " received " + bytesRead + " data");
-                        if (bytesRead > 0){
-                            shareFile.write(buffer, 0, bytesRead);
-                            System.arraycopy(buffer, 0, encryptedData, bufferSize, bytesRead);
-                            bufferSize += bytesRead;
-                        }
+            boolean  verified = true;
 
+            if (VERIFIABILITY){
+                //verify
+                ExecutorService pool = Executors.newFixedThreadPool(THREADS);
+                Future[] futures = new Future[THREADS];
+                int numberOfThreads = 0;
+                long destStartingByte = 0;
+
+                while (numbersReceived < numbersInFile && verified) {
+
+                    for (int i = 0; i < THREADS; i++) {
+                        BigInteger[] buffer = (BigInteger[]) in.readObject();
+                        int numbers = buffer.length / (NEEDED_SHARES+2);
+                        VerificationTask task = new VerificationTask(share.getNeededShares(), fileName, xValue, buffer, destStartingByte);
+                        futures[i] = pool.submit(task);
+                        destStartingByte += numbers*MOD_SIZE;
+                        numbersReceived += buffer.length;
+                        numberOfThreads = i;
+                        if (numbersReceived >= numbersInFile) break;
                     }
-                    if(encryptedData.length != BUFFER_SIZE) show(encryptedData.length);
-                    queue.put(encryptedData);
-                    dataReceived += bufferSize;
+
+                    for (int i = 0; i <= numberOfThreads; i++) {
+                        int returnValue = (int) futures[i].get();
+                        if (returnValue != 0){
+                            show("Verification Error");
+                            pool.shutdownNow();
+                            while (!pool.isTerminated()){
+                                Thread.sleep(100);
+                            }
+                            new File(fileName + xValue).delete();
+                            verified = false;
+                            break;
+                        }
+                    }
+
                 }
-            }else {
-                while (dataReceived != SHARES_FILE_SIZE) {
-                    byte[] buffer = (byte[]) in.readObject();
-                    //show("Socket " + (port%8000) + " received " + buffer.length + " data");
-                    shareFile.write(buffer);
-                    dataReceived += buffer.length;
+            }else{
+                while (numbersReceived < numbersInFile) {
+                    BigInteger[] buffer = (BigInteger[]) in.readObject();
+
+                    for (BigInteger aBuffer : buffer) {
+                        shareFile.write(fixLength(aBuffer.toByteArray(), MOD_SIZE));
+                    }
+
+                    numbersReceived += buffer.length;
                 }
             }
 
-            if (shareFile.length() == SHARES_FILE_SIZE){
+
+
+
+            if ( shareFileSize == shareFile.length() && verified){
                 show("Share File " + (xValue-1) + " created successfully");
                 out.writeInt(0);
             }else{
@@ -189,15 +201,15 @@ public class ServerListener extends SSLConnection implements Runnable{
 
             long shareFileSize = shareFile.length();
 
-            initializeParameters(share.getModulus().bitLength()/8, shareFileSize, false);
+            initializeParameters( shareFileSize, 1,false);
 
             out.writeInt(xValue);
             out.flush();
 
             long dataSent = 0;
 
-            while (dataSent < SHARES_FILE_SIZE) {
-                int bufferSize = (int) Math.min(BUFFER_SIZE, SHARES_FILE_SIZE-dataSent);
+            while (dataSent < shareFileSize) {
+                int bufferSize = (int) Math.min(BUFFER_SIZE, shareFileSize-dataSent);
                 byte[] buffer = new byte[bufferSize];
                 shareFile.readFully(buffer);
                 out.writeObject(buffer);
@@ -206,7 +218,7 @@ public class ServerListener extends SSLConnection implements Runnable{
                 dataSent += buffer.length;
             }
 
-            if (dataSent == SHARES_FILE_SIZE){
+            if (dataSent == shareFileSize){
                 show("Share File " + (xValue-1) + " sent successfully");
                 out.writeInt(0);
             }else{

@@ -37,13 +37,15 @@ public class Database {
             shareholdersDao = DaoManager.createDao(connectionSource, ShareHolder.class);
             sharesDao = DaoManager.createDao(connectionSource, Share.class);
             manyToManyDao = DaoManager.createDao(connectionSource, ManyToMany.class);
+            pedersenParametersDao = DaoManager.createDao(connectionSource, PedersenParameters.class);
 
             if (!new File("shares.db").isFile()) {
                 TableUtils.createTable(connectionSource, ShareHolder.class);
                 TableUtils.createTable(connectionSource, Share.class);
+                TableUtils.createTable(connectionSource, PedersenParameters.class);
                 TableUtils.createTable(connectionSource, ManyToMany.class);
                 for (int i = 1; i<=10; i++){
-                    ShareHolder shareHolder = new ShareHolder("localhost"+i, 8010+i);
+                    ShareHolder shareHolder = new ShareHolder("localhost", 8000+i);
                     shareholdersDao.createIfNotExists(shareHolder);
                 }
             }

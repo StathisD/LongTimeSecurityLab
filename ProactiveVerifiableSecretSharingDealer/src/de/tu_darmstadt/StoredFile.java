@@ -21,18 +21,16 @@ public class StoredFile {
     private int neededShares;
     @DatabaseField
     private long fileSize;
-    @DatabaseField
-    private int bits;
+
 
     public StoredFile(){}
 
-    public StoredFile(String name, BigInteger modulus, int numberOfShareholders, int neededShares, long fileSize, int bits){
+    public StoredFile(String name, BigInteger modulus, int numberOfShareholders, int neededShares, long fileSize) {
         this.name = name;
         this.modulus = modulus;
         this.numberOfShareholders = numberOfShareholders;
         this.neededShares = neededShares;
         this.fileSize = fileSize;
-        this.bits = bits;
     }
 
     public String getName(){
@@ -67,11 +65,4 @@ public class StoredFile {
         this.fileSize = fileSize;
     }
 
-    public int getBits() {
-        return bits;
-    }
-
-    public void setBits(int bits) {
-        this.bits = bits;
-    }
 }

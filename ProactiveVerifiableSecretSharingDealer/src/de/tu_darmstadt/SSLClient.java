@@ -5,18 +5,22 @@ package de.tu_darmstadt;
  */
 
 import javax.net.ssl.SSLSocketFactory;
-import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.math.BigInteger;
 import java.net.Socket;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import static de.tu_darmstadt.Parameters.*;
 
 public class SSLClient implements Runnable{
     private static SSLSocketFactory sslSocketFactory;
-    public final LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
+    public final LinkedBlockingQueue<BigInteger[]> numberQueue = new LinkedBlockingQueue<>();
+    public final LinkedBlockingQueue<byte[]> byteQueue = new LinkedBlockingQueue<>();
     int xValue;
     private ShareHolder shareHolder;
     private int mode;
@@ -89,7 +93,7 @@ public class SSLClient implements Runnable{
 
     private void sendShares(){
         try{
-            long dataSent = 0;
+            long numbersSent = 0;
             while (xValue == 0){
                 Thread.sleep(100);
             }
@@ -98,24 +102,24 @@ public class SSLClient implements Runnable{
             out.writeLong(SHARES_FILE_SIZE);
             out.writeInt(xValue);
 
-            out.writeObject(MODULUS);
 
             out.writeBoolean(VERIFIABILITY);
 
             out.writeObject(shareHolders);
+
             out.flush();
 
             if (VERIFIABILITY) {
-                out.writeObject(BigIntegerPolynomial.g);
-                out.writeObject(BigIntegerPolynomial.h);
-                out.flush();
+
             }
 
-            while (dataSent != SHARES_FILE_SIZE) {
-                byte[] buffer = queue.poll(10, TimeUnit.MINUTES);
+            int numbersInFile = (int) Math.ceil(TARGET_FILE_SIZE * 1.0 / BLOCK_SIZE);
+
+            while (numbersSent != numbersInFile) {
+                BigInteger[] buffer = numberQueue.poll(10, TimeUnit.MINUTES);
                 out.writeObject(buffer);
-                //show("Socket " + (port % 8000) + " sent " + buffer.length + " data");
-                dataSent += buffer.length;
+
+                numbersSent += buffer.length;
                 out.flush();
             }
 
@@ -141,7 +145,7 @@ public class SSLClient implements Runnable{
             while (dataReceived != SHARES_FILE_SIZE) {
                 byte[] buffer = (byte[]) in.readObject();
                 //show("Socket " + (port%8000) + " received " + buffer.length + " data");
-                queue.put(buffer);
+                byteQueue.put(buffer);
                 dataReceived += buffer.length;
             }
 
@@ -158,7 +162,6 @@ public class SSLClient implements Runnable{
             Logger.getLogger(SSLClient.class.getName());
         }
     }
-
 
 
 }
