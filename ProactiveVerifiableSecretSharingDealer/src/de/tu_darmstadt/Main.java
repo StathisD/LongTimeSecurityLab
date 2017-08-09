@@ -70,7 +70,7 @@ public class Main {
             RandomAccessFile sourceFile = new RandomAccessFile(FILE_PATH, "r");
             sourceFile.seek(0L);
             long targetFileSize = sourceFile.length();
-            boolean verifiability = true;
+            boolean verifiability = false;
 
             initializeParameters(targetFileSize, 0, verifiability);
 

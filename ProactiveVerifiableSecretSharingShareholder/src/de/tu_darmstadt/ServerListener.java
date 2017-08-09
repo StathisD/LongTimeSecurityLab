@@ -5,7 +5,10 @@ package de.tu_darmstadt;
  */
 
 import javax.net.ssl.SSLServerSocketFactory;
-import java.io.*;
+import java.io.File;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.net.ServerSocket;
 import java.util.concurrent.*;
@@ -16,13 +19,11 @@ import static de.tu_darmstadt.Parameters.*;
 
 public class ServerListener extends SSLConnection implements Runnable{
 
-    private int port;
-    int xValue;
     static ExecutorService pool;
-
-    public final LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
-
     private static SSLServerSocketFactory sslServerSocketFactory;
+    public final LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
+    int xValue;
+    private int port;
 
     private ServerListener(int port){
         this.port = port;
@@ -92,17 +93,18 @@ public class ServerListener extends SSLConnection implements Runnable{
 
             xValue = in.readInt();
 
+            int neededShares = in.readInt();
+
             boolean verifiability = in.readBoolean();
 
             ShareHolder[] shareHolders = (ShareHolder[]) in.readObject();
-
 
             initializeParameters(shareFileSize,1, verifiability);
 
             int numbersInFile = (int) Math.ceil(shareFileSize * 1.0 / MOD_SIZE);
 
             dbSemaphore.acquire();
-            Share share = new Share(fileName + xValue, xValue, socket.getInetAddress().toString(), socket.getPort(), MODULUS, 5,3, numbersInFile);
+            Share share = new Share(fileName + xValue, xValue, socket.getInetAddress().toString(), socket.getPort(), MODULUS, shareHolders.length, neededShares, numbersInFile);
             int j = 1;
             /*for (ShareHolder s : shareHolders){
                 ShareHolder shareholder = shareholdersDao.queryForId(s.getIpAddress());
@@ -121,6 +123,7 @@ public class ServerListener extends SSLConnection implements Runnable{
 
             if (VERIFIABILITY){
                 //verify
+                numbersInFile = numbersInFile * (neededShares + 2);
                 ExecutorService pool = Executors.newFixedThreadPool(THREADS);
                 Future[] futures = new Future[THREADS];
                 int numberOfThreads = 0;
@@ -129,9 +132,12 @@ public class ServerListener extends SSLConnection implements Runnable{
                 while (numbersReceived < numbersInFile && verified) {
 
                     for (int i = 0; i < THREADS; i++) {
+
                         BigInteger[] buffer = (BigInteger[]) in.readObject();
-                        int numbers = buffer.length / (NEEDED_SHARES+2);
-                        VerificationTask task = new VerificationTask(share.getNeededShares(), fileName, xValue, buffer, destStartingByte);
+
+                        int numbers = buffer.length / (neededShares + 2);
+
+                        VerificationTask task = new VerificationTask(neededShares, fileName, xValue, buffer, destStartingByte);
                         futures[i] = pool.submit(task);
                         destStartingByte += numbers*MOD_SIZE;
                         numbersReceived += buffer.length;
@@ -170,10 +176,10 @@ public class ServerListener extends SSLConnection implements Runnable{
 
 
             if ( shareFileSize == shareFile.length() && verified){
-                show("Share File " + (xValue-1) + " created successfully");
+                show("Share File " + xValue + " created successfully");
                 out.writeInt(0);
             }else{
-                show("ERROR: Share File " + (xValue-1) + " does not have the correct size");
+                show("ERROR: Share File " + xValue + " does not have the correct size");
                 out.writeInt(1);
             }
             out.flush();
@@ -188,13 +194,12 @@ public class ServerListener extends SSLConnection implements Runnable{
         try{
 
             String fileName = (String) in.readObject();
-
+            show("hi");
             dbSemaphore.acquire();
             Share share = sharesDao.queryForId(fileName + port % 8000);
             dbSemaphore.release();
 
             xValue = share.getxValue();
-
 
             RandomAccessFile shareFile = new RandomAccessFile(fileName + port % 8000, "r");
             shareFile.seek(0L);

@@ -10,7 +10,6 @@ import java.util.concurrent.ExecutorService;
 import static de.tu_darmstadt.Database.lookupShareHoldersForShare;
 import static de.tu_darmstadt.Database.lookupXvalueForShareHolderAndShare;
 import static de.tu_darmstadt.Parameters.*;
-import static de.tu_darmstadt.Parameters.SHARE_SIZE;
 
 /**
  * Created by Stathis on 7/1/17.
@@ -54,8 +53,6 @@ public class RenewShareTask{
             }
             dbSemaphore.release();
 
-            MODULUS = share.getModulus();
-
             RandomAccessFile sourceFile = new RandomAccessFile(share.getName(), "r");
             RandomAccessFile destinationFile = new RandomAccessFile(share.getName()+"_new", "rw");
             sourceFile.seek(0L);
@@ -72,7 +69,7 @@ public class RenewShareTask{
                 remoteNumberMap = new HashMap<>();
                 localNumberMap = new HashMap<>();
                 currentNumber = i;
-                currentPolynomial = new BigIntegerPolynomial(share.getNeededShares() - 1, share.getModulus() , BigInteger.ZERO);
+                currentPolynomial = new BigIntegerPolynomial(share.getNeededShares() - 1, MODULUS, BigInteger.ZERO);
 
 
                 sourceFile.readFully(buffer);

@@ -48,8 +48,8 @@ public class Share {
         this.numberOfShareholders = numberOfShareholders;
         this.neededShares = neededShares;
         this.numbersInShare = numbersInShare;
-        this.renewStatus = "needs_renewal";
-        this.lastRenewed = 0;
+        this.renewStatus = "renewed";
+        this.lastRenewed = System.currentTimeMillis();
     }
 
     public String getName(){

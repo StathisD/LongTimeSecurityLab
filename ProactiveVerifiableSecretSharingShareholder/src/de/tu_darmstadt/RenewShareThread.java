@@ -19,7 +19,7 @@ public class RenewShareThread extends Thread {
                 try {
                     while (iterator.hasNext()) {
                         Share share = iterator.next();
-                        if (Math.abs(share.getLastRenewed()-System.currentTimeMillis()) >= (timeSlot-1000*60*60*24) && !share.getRenewStatus().equals("in_progress")){
+                        if (Math.abs(share.getLastRenewed() - System.currentTimeMillis()) >= (1000 * 60 * 60 * 24) && !share.getRenewStatus().equals("in_progress")) {
                             share.setRenewStatus("in_progress");
                             sharesDao.update(share);
                             new RenewShareTask(share).start();

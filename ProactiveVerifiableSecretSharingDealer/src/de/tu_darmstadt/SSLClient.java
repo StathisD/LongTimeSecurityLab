@@ -102,6 +102,7 @@ public class SSLClient implements Runnable{
             out.writeLong(SHARES_FILE_SIZE);
             out.writeInt(xValue);
 
+            out.writeInt(NEEDED_SHARES);
 
             out.writeBoolean(VERIFIABILITY);
 
@@ -109,13 +110,14 @@ public class SSLClient implements Runnable{
 
             out.flush();
 
-            if (VERIFIABILITY) {
-
-            }
-
             int numbersInFile = (int) Math.ceil(TARGET_FILE_SIZE * 1.0 / BLOCK_SIZE);
 
-            while (numbersSent != numbersInFile) {
+            if (VERIFIABILITY) {
+                numbersInFile = numbersInFile*(NEEDED_SHARES+2);
+            }
+
+            show(numbersInFile);
+            while (numbersSent < numbersInFile) {
                 BigInteger[] buffer = numberQueue.poll(10, TimeUnit.MINUTES);
                 out.writeObject(buffer);
 

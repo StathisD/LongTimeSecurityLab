@@ -11,19 +11,6 @@ public class Main {
         try {
             FILE_PATH = args[0];
 
-            /*Scanner scanner = new Scanner(System.in);
-            int input;
-            do {
-                show("Please specify what you want to do:");
-                show("(Type 1 for creating a new connection to a Dealer)");
-                input = scanner.nextInt();
-            } while (input <= 0 || input > 1);
-
-            switch (input) {
-                case 1:
-                    ServerListener.startListeningForConnections();
-            }*/
-
             Database.initiateDb();
 
             dbSemaphore.acquire();
@@ -37,14 +24,6 @@ public class Main {
 
             ServerListener.startListeningForConnections();
 
-
-
-        /*Timestamp start = new Timestamp(System.currentTimeMillis());
-
-
-
-        Timestamp end = new Timestamp(System.currentTimeMillis());
-        System.out.println(end.getTime() - start.getTime());*/
 
         }catch(Exception e){
             e.printStackTrace();

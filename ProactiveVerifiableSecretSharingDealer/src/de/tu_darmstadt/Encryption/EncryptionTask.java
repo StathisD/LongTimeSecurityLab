@@ -35,7 +35,6 @@ public class EncryptionTask implements Callable<BigInteger[][]> {
             encryptedNumbers = new BigInteger[SHAREHOLDERS][numbersInBuffer];
         }
 
-
         int currentPos = 0;
         byte[] oneNumber;
         for (int i = 0; i < numbersInBuffer; i++) {
@@ -49,9 +48,6 @@ public class EncryptionTask implements Callable<BigInteger[][]> {
 
             //encrypt
             BigIntegerPolynomial polynomial = new BigIntegerPolynomial(NEEDED_SHARES - 1, MODULUS, number);
-
-            //byte[] byteShare = new byte[SHARE_SIZE];
-
 
             for (int x = 0; x < SHAREHOLDERS; x++) {
 
