@@ -20,7 +20,7 @@ public class PedersenParameters implements Serializable {
     @DatabaseField
     int encodingBits = 504;
     @DatabaseField(id = true)
-    private String id;
+    public String id;
 
     public PedersenParameters() {
     }

@@ -14,6 +14,8 @@ public class StoredFile {
     @DatabaseField(id = true)
     private String name;
     @DatabaseField
+    private String fileLocation;
+    @DatabaseField
     private BigInteger modulus;
     @DatabaseField
     private int numberOfShareholders;
@@ -25,8 +27,9 @@ public class StoredFile {
 
     public StoredFile(){}
 
-    public StoredFile(String name, BigInteger modulus, int numberOfShareholders, int neededShares, long fileSize) {
+    public StoredFile(String name, String fileLocation, BigInteger modulus, int numberOfShareholders, int neededShares, long fileSize) {
         this.name = name;
+        this.fileLocation = fileLocation;
         this.modulus = modulus;
         this.numberOfShareholders = numberOfShareholders;
         this.neededShares = neededShares;
@@ -65,4 +68,11 @@ public class StoredFile {
         this.fileSize = fileSize;
     }
 
+    public String getFileLocation() {
+        return fileLocation;
+    }
+
+    public void setFileLocation(String fileLocation) {
+        this.fileLocation = fileLocation;
+    }
 }

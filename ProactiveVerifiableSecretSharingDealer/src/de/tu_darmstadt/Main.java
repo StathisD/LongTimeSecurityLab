@@ -4,6 +4,7 @@ import com.j256.ormlite.dao.CloseableIterator;
 import de.tu_darmstadt.Decryption.DecryptionTask;
 import de.tu_darmstadt.Encryption.EncryptionTask;
 
+import java.io.File;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
 import java.sql.Timestamp;
@@ -13,8 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static de.tu_darmstadt.Database.initiateDb;
-import static de.tu_darmstadt.Database.lookupShareHoldersForStoredFile;
+import static de.tu_darmstadt.Database.*;
 import static de.tu_darmstadt.Parameters.*;
 
 public class Main {
@@ -23,8 +23,9 @@ public class Main {
     public static void main(String[] args) {
         try {
             FILE_PATH = args[0];
-            SHAREHOLDERS = Integer.parseInt(args[1]);
-            NEEDED_SHARES = Integer.parseInt(args[2]);
+            FILE_NAME = args[1];
+            SHAREHOLDERS = Integer.parseInt(args[2]);
+            NEEDED_SHARES = Integer.parseInt(args[3]);
             initiateDb();
 
             dbSemaphore.acquire();
@@ -74,9 +75,9 @@ public class Main {
 
             initializeParameters(targetFileSize, 0, verifiability);
 
+            StoredFile storedFile = new StoredFile(FILE_NAME, FILE_PATH, MODULUS, SHAREHOLDERS, NEEDED_SHARES, targetFileSize);
+
             dbSemaphore.acquire();
-            StoredFile storedFile = new StoredFile(FILE_PATH, MODULUS, SHAREHOLDERS, NEEDED_SHARES, targetFileSize);
-            storedFileDao.createIfNotExists(storedFile);
 
             CloseableIterator<ShareHolder> iterator = shareholdersDao.closeableIterator();
             try {
@@ -84,9 +85,8 @@ public class Main {
                 shareHolders = new ShareHolder[SHAREHOLDERS];
                 while (iterator.hasNext() && j < SHAREHOLDERS) {
                     ShareHolder shareHolder = iterator.next();
+                    shareHolder.setxValue(BigInteger.valueOf(j + 1));
                     shareHolders[j] = shareHolder;
-                    ManyToMany manyToMany = new ManyToMany(shareHolder, storedFile, BigInteger.valueOf(j+1));
-                    manyToManyDao.createIfNotExists(manyToMany);
                     j++;
                 }
             } finally {
@@ -138,21 +138,36 @@ public class Main {
                     for (int j = 0; j < SHAREHOLDERS; j++) {
                         sslClients[j].numberQueue.put(taskBuffer[j]);
                     }
-
                 }
             }
             int numbersInFile = (int) Math.ceil(TARGET_FILE_SIZE * 1.0 / BLOCK_SIZE);
             if (VERIFIABILITY) numbersInFile = numbersInFile * (NEEDED_SHARES + 2);
-            if (encrypted != numbersInFile) {
-                show("ERROR in File Encryption");
-            } else {
-                show("File Encryption completed successfully");
-            }
-            pool.shutdown();
-            pool.awaitTermination(10, TimeUnit.MINUTES);
 
+            pool.shutdown();
             socketPool.shutdown();
+            pool.awaitTermination(10, TimeUnit.MINUTES);
             socketPool.awaitTermination(10, TimeUnit.MINUTES);
+
+            boolean success = true;
+            for (int i = 0; i < SHAREHOLDERS; i++) {
+                if (!sslClients[i].status.equals("successful")) {
+                    success = false;
+                }
+            }
+            if (encrypted == numbersInFile && success) {
+                show("File Storing completed successfully");
+                new File(FILE_PATH).delete();
+                dbSemaphore.acquire();
+                storedFileDao.createIfNotExists(storedFile);
+                for (ShareHolder shareHolder : shareHolders) {
+                    ManyToMany manyToMany = new ManyToMany(shareHolder, storedFile, shareHolder.getxValue());
+                    manyToManyDao.createIfNotExists(manyToMany);
+                }
+                dbSemaphore.release();
+            } else {
+                show("ERROR in File Storing");
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -161,25 +176,35 @@ public class Main {
     private static void decryptFile(int mode) {
         try {
             dbSemaphore.acquire();
-            StoredFile storedFile = storedFileDao.queryForId(FILE_PATH);
-            shareHolders = new ShareHolder[SHAREHOLDERS];
+            StoredFile storedFile = storedFileDao.queryForId(FILE_NAME);
+            ShareHolder[] shareHolders = new ShareHolder[SHAREHOLDERS];
             shareHolders = lookupShareHoldersForStoredFile(storedFile).toArray(shareHolders);
             dbSemaphore.release();
 
             NEEDED_SHARES = storedFile.getNeededShares();
-            MODULUS = storedFile.getModulus();
+            SHAREHOLDERS = storedFile.getNumberOfShareholders();
+
             initializeParameters(storedFile.getFileSize(), 1, false);
 
             ExecutorService socketPool = SSLClient.openNewConnections(mode);
 
             BigInteger[] xValues = new BigInteger[NEEDED_SHARES];
+            sslClients = new SSLClient[SHAREHOLDERS];
 
-            for (int i = 0; i< NEEDED_SHARES; i++){
-                while (sslClients[i].xValue == 0){
-                    Thread.sleep(100);
+            for (int i = 0; i < SHAREHOLDERS; i++) {
+                SSLClient sslClient;
+                if (i < NEEDED_SHARES) {
+                    sslClient = new SSLClient(shareHolders[i], 2);
+                    xValues[i] = lookupXvalueForShareHolderAndShare(shareHolders[i], storedFile);
+                    sslClient.xValue = xValues[i].intValue();
+                    sslClients[i] = sslClient;
+                } else {
+                    sslClient = new SSLClient(shareHolders[i], 3);
+                    sslClients[i] = sslClient;
                 }
-                xValues[i] = BigInteger.valueOf(sslClients[i].xValue);
+                socketPool.submit(sslClient);
             }
+
 
             //compute Lagrange Coefficients
             BigIntegerPolynomial.computeLagrangeCoefficients(xValues, MODULUS);
@@ -220,6 +245,22 @@ public class Main {
             socketPool.shutdown();
             socketPool.awaitTermination(10, TimeUnit.MINUTES);
 
+            dbSemaphore.acquire();
+            storedFileDao.deleteById(storedFile.getName());
+            CloseableIterator<ManyToMany> iterator = manyToManyDao.closeableIterator();
+            try {
+                while (iterator.hasNext()) {
+                    ManyToMany manyToMany = iterator.next();
+                    if (manyToMany.storedFile.getName().equals(storedFile.getName())) {
+                        manyToManyDao.delete(manyToMany);
+                    }
+                }
+            } finally {
+                // close it at the end to close underlying SQL statement
+                iterator.close();
+            }
+            dbSemaphore.release();
+
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -229,10 +270,9 @@ public class Main {
     private static void addShareHolder(){
         try{
             dbSemaphore.acquire();
-            for (int i = 1; i<=10; i++){
-                ShareHolder shareHolder = new ShareHolder("localhost"+i, 8000+i);
-                shareholdersDao.createIfNotExists(shareHolder);
-            }
+            ShareHolder shareHolder = new ShareHolder("Server" + 0, "localhost", 8000);
+            shareholdersDao.createIfNotExists(shareHolder);
+
             dbSemaphore.release();
 
         }catch(Exception e){

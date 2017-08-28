@@ -31,7 +31,7 @@ public class VerificationTask implements Callable {
     public Integer call() {
 
         try {
-            RandomAccessFile shareFile = new RandomAccessFile(fileName + xValue, "rw");
+            RandomAccessFile shareFile = new RandomAccessFile(SHARE_DIR + fileName, "rw");
             shareFile.seek(destStartingByte);
 
             for (int i = 0; i< buffer.length; i= i + (neededShares+2)) {
@@ -44,7 +44,7 @@ public class VerificationTask implements Callable {
                 boolean status = BigIntegerPolynomial.verifyCommitment(shareIndex, share, shareCommitment, publicCommitments, pedersenParameters.getP());
 
                 if (!status) throw new Exception("Not Valid Share detected");
-                shareFile.write(fixLength(share.toByteArray(), MOD_SIZE));
+                shareFile.write(fixLength(share.toByteArray(), Parameters.SHARE_SIZE));
 
             }
             show("verification success");

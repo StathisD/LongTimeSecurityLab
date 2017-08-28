@@ -4,7 +4,7 @@ package de.tu_darmstadt;
  * Created by stathis on 6/8/17.
  */
 
-import javax.net.ssl.SSLSocketFactory;
+import javax.net.SocketFactory;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.math.BigInteger;
@@ -18,7 +18,7 @@ import java.util.logging.Logger;
 import static de.tu_darmstadt.Parameters.*;
 
 public class SSLClient implements Runnable{
-    private static SSLSocketFactory sslSocketFactory;
+    private static /*SSL*/ SocketFactory sslSocketFactory;
     public final LinkedBlockingQueue<BigInteger[]> numberQueue = new LinkedBlockingQueue<>();
     public final LinkedBlockingQueue<byte[]> byteQueue = new LinkedBlockingQueue<>();
     int xValue;
@@ -27,38 +27,34 @@ public class SSLClient implements Runnable{
     private Socket socket;
     private ObjectOutputStream out;
     private ObjectInputStream in;
+    public String status;
 
-    private SSLClient(ShareHolder shareHolder, int mode){
+    public SSLClient(ShareHolder shareHolder, int mode) {
         this.shareHolder = shareHolder;
         this.mode = mode;
+        status = "starting";
     }
 
     static ExecutorService openNewConnections(int mode) {
         try {
-            System.setProperty("javax.net.ssl.trustStore", "/media/stathis/9AEA2384EA235BAF/keystore.jks");
-            System.setProperty("javax.net.ssl.trustStorePassword", "123456");
-            sslSocketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+            //System.setProperty("javax.net.ssl.trustStore", "/media/stathis/9AEA2384EA235BAF/Client_keystore.jks");
+            //System.setProperty("javax.net.ssl.trustStorePassword", "123456");
+            sslSocketFactory = /*(SSLSocketFactory) SSL*/SocketFactory.getDefault();
             ExecutorService pool = Executors.newCachedThreadPool();
             int numberThreads;
             switch (mode){
                 case 1:
                     //Encryption
                     numberThreads = SHAREHOLDERS;
+                    sslClients = new SSLClient[numberThreads];
+                    for (int i = 0; i < numberThreads; i++) {
+                        SSLClient sslClient = new SSLClient(shareHolders[i], mode);
+                        sslClients[i] = sslClient;
+                        pool.submit(sslClient);
+                    }
+                    pool.shutdown();
                     break;
-                case 2:
-                    //Decryption
-                    numberThreads = NEEDED_SHARES;
-                    break;
-                default:
-                    numberThreads = 0;
             }
-            sslClients = new SSLClient[numberThreads];
-            for (int i = 0; i < numberThreads; i++) {
-                SSLClient sslClient = new SSLClient(shareHolders[i], mode);
-                sslClients[i] = sslClient;
-                pool.submit(sslClient);
-            }
-            pool.shutdown();
             return pool;
         } catch (Exception e) {
             Logger.getLogger(SSLClient.class.getName());
@@ -75,6 +71,7 @@ public class SSLClient implements Runnable{
             out.writeInt(mode);
             out.flush();
 
+            status = "connected";
             switch (mode){
                 case 1:
                     //Encryption
@@ -83,6 +80,11 @@ public class SSLClient implements Runnable{
                 case 2:
                     //Decryption
                     receiveShares();
+                    break;
+                case 3:
+                    //Decryption
+                    deleteShare();
+                    break;
             }
 
             socket.close();
@@ -98,7 +100,7 @@ public class SSLClient implements Runnable{
                 Thread.sleep(100);
             }
 
-            out.writeObject(FILE_PATH);
+            out.writeObject(FILE_NAME);
             out.writeLong(SHARES_FILE_SIZE);
             out.writeInt(xValue);
 
@@ -116,7 +118,6 @@ public class SSLClient implements Runnable{
                 numbersInFile = numbersInFile*(NEEDED_SHARES+2);
             }
 
-            show(numbersInFile);
             while (numbersSent < numbersInFile) {
                 BigInteger[] buffer = numberQueue.poll(10, TimeUnit.MINUTES);
                 out.writeObject(buffer);
@@ -128,11 +129,14 @@ public class SSLClient implements Runnable{
             int result = in.readInt();
             if (result == 0){
                 show("StoredFile File " + (xValue) + " sent successfully");
+                status = "successful";
             }else{
                 show("ERROR: StoredFile File " + (xValue) + " could not be sent");
+                status = "unsuccessful";
             }
         } catch (Exception e) {
             Logger.getLogger(SSLClient.class.getName());
+            status = "unsuccessful";
         }
     }
 
@@ -140,9 +144,9 @@ public class SSLClient implements Runnable{
         try{
             long dataReceived = 0;
 
-            out.writeObject(FILE_PATH);
+            out.writeObject(FILE_NAME);
 
-            xValue = in.readInt();
+            out.flush();
 
             while (dataReceived != SHARES_FILE_SIZE) {
                 byte[] buffer = (byte[]) in.readObject();
@@ -151,17 +155,39 @@ public class SSLClient implements Runnable{
                 dataReceived += buffer.length;
             }
 
-            int status = in.readInt();
-            if (dataReceived == SHARES_FILE_SIZE && status == 0) {
+            int result = in.readInt();
+            if (dataReceived == SHARES_FILE_SIZE && result == 0) {
                 show("StoredFile File " + (xValue) + " received successfully");
-
+                status = "successful";
             }else{
                 show("ERROR: StoredFile File " + (xValue) + " could not be received");
-
+                status = "unsuccessful";
             }
 
         } catch (Exception e) {
             Logger.getLogger(SSLClient.class.getName());
+            status = "unsuccessful";
+        }
+    }
+
+    private void deleteShare() {
+        try {
+            out.writeObject(FILE_NAME);
+
+            out.flush();
+
+            int result = in.readInt();
+            if (result == 0) {
+                show("Remote File Share deleted successfully");
+                status = "successful";
+            } else {
+                show("ERROR: Remote File Share could not be deleted");
+                status = "unsuccessful";
+            }
+
+        } catch (Exception e) {
+            Logger.getLogger(SSLClient.class.getName());
+            status = "unsuccessful";
         }
     }
 

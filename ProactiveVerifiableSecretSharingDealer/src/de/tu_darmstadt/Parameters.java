@@ -19,6 +19,7 @@ public final class Parameters {
     public static long TARGET_FILE_SIZE;
     public static int BUFFER_SIZE;
     public static String FILE_PATH;
+    public static String FILE_NAME;
     public static int MOD_SIZE;
     public static boolean VERIFIABILITY;
     public static PedersenParameters pedersenParameters;

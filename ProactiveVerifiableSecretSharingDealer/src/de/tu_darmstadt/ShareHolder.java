@@ -4,6 +4,7 @@ import com.j256.ormlite.field.DatabaseField;
 import com.j256.ormlite.table.DatabaseTable;
 
 import java.io.Serializable;
+import java.math.BigInteger;
 
 
 /**
@@ -13,16 +14,21 @@ import java.io.Serializable;
 public class ShareHolder implements Serializable{
 
     // we use this field-name so we can query for posts with a certain id
-    public final static String ID_FIELD_NAME = "ipAddress";
+    public final static String ID_FIELD_NAME = "name";
 
     @DatabaseField(id=true, columnName = ID_FIELD_NAME)
+    private String name;
+    @DatabaseField
     private String ipAddress;
     @DatabaseField
     private int port;
 
+    private BigInteger xValue;
+
     public ShareHolder(){}
 
-    public ShareHolder(String ipAddress, int port){
+    public ShareHolder(String name, String ipAddress, int port) {
+        this.name = name;
         this.ipAddress = ipAddress;
         this.port = port;
 
@@ -46,6 +52,22 @@ public class ShareHolder implements Serializable{
 
 
     public String toString(){
-        return  "IP ADDRESS: " + ipAddress + " PORT: " + port;
+        return "NAME: " + name + " IP ADDRESS: " + ipAddress + " PORT: " + port + " X_VALUE: " + xValue;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public BigInteger getxValue() {
+        return xValue;
+    }
+
+    public void setxValue(BigInteger xValue) {
+        this.xValue = xValue;
     }
 }

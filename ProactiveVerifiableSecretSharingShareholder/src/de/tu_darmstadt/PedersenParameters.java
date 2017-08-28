@@ -9,7 +9,7 @@ import java.math.BigInteger;
 public class PedersenParameters implements Serializable {
 
     @DatabaseField(id=true)
-    private String id;
+    public String id;
 
     @DatabaseField
     int encodingBits = 504;

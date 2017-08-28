@@ -28,7 +28,7 @@ public class DecryptionTask implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            RandomAccessFile targetFile = new RandomAccessFile(FILE_PATH + "_dec", "rw");
+            RandomAccessFile targetFile = new RandomAccessFile(FILE_PATH, "rw");
             int sizeLastNumber = 0;
             boolean lastBuffer = false;
 

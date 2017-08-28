@@ -4,6 +4,7 @@ package de.tu_darmstadt;
  * Created by stathis on 6/8/17.
  */
 
+import javax.net.SocketFactory;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -17,7 +18,7 @@ import java.util.logging.Logger;
 import static de.tu_darmstadt.Parameters.*;
 
 public class SSLClient extends SSLConnection implements Runnable{
-    private static SSLSocketFactory sslSocketFactory;
+    private static /*SSL*/SocketFactory sslSocketFactory;
 
     private ShareHolder shareHolder;
     private Share share;
@@ -30,9 +31,9 @@ public class SSLClient extends SSLConnection implements Runnable{
 
     static ExecutorService prepareConnections() {
         try {
-            System.setProperty("javax.net.ssl.trustStore", "/media/stathis/9AEA2384EA235BAF/keystore.jks");
-            System.setProperty("javax.net.ssl.trustStorePassword", "123456");
-            sslSocketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+            //System.setProperty("javax.net.ssl.trustStore", "/media/stathis/9AEA2384EA235BAF/"+ SERVER_NAME + "/" + SERVER_NAME + "_keystore.jks");
+            //System.setProperty("javax.net.ssl.trustStorePassword", "123456");
+            sslSocketFactory = /*(SSLSocketFactory) SSL*/SocketFactory.getDefault();
             ExecutorService pool = Executors.newCachedThreadPool();
             return pool;
         } catch (Exception e) {
@@ -44,18 +45,15 @@ public class SSLClient extends SSLConnection implements Runnable{
     @Override
     public void run() {
         try{
-            for(int port : ports){
-                try{
-                    socket = sslSocketFactory.createSocket(shareHolder.getIpAddress(), port);
-                    break;
-                }catch (IOException e){}
-            }
+            socket = sslSocketFactory.createSocket(shareHolder.getIpAddress(), shareHolder.getPort());
+
             out = new ObjectOutputStream(socket.getOutputStream());
             in = new ObjectInputStream(socket.getInputStream());
 
             //send renew code
-            out.writeInt(3);
-            out.writeObject(share);
+            out.writeInt(4);
+            out.writeObject(SERVER_NAME);
+            out.writeObject(share.getName());
             out.flush();
 
             //wait for ack
@@ -67,13 +65,31 @@ public class SSLClient extends SSLConnection implements Runnable{
                     break;
                 case 0:
                     //ready to renew
-                    long currentNumber;
-                    while ((currentNumber = numberQueue.poll(10, TimeUnit.MINUTES)) >= 0){
-                        out.writeLong(currentNumber);
-                        out.writeObject(RenewShareTask.remoteNumberMap.get(shareHolder));
+                    long currentNumber = numberQueue.poll(10, TimeUnit.MINUTES);
+                    show("Local current number " + currentNumber);
+                    out.writeLong(currentNumber);
+                    out.flush();
+                    long remoteCurrentNumber = in.readLong();
+                    show("Remote current number received " + remoteCurrentNumber);
+                    while (currentNumber  >= 0 && remoteCurrentNumber == currentNumber){
+                        out.writeObject(RenewShareTask.remoteNumberMap.get(shareHolder.getName()));
+                        show("Send array for " + currentNumber);
                         out.flush();
-                        BigInteger number = (BigInteger) in.readObject();
-                        RenewShareTask.localNumberMap.put(shareHolder, number);
+                        BigInteger[] localNumberArray = (BigInteger[]) in.readObject();
+                        if (VERIFIABILITY){
+                            localNumberArray = new ProactiveVerificationTask(share.getNeededShares(), share.getxValue(),localNumberArray).call();
+                            if (localNumberArray == null){
+                                RenewShareTask.verificationSuccess = false;
+                            }
+                        }
+                        show("received array for " + currentNumber);
+                        RenewShareTask.localNumberMap.put(shareHolder.getName(), localNumberArray);
+                        currentNumber = numberQueue.poll(10, TimeUnit.MINUTES);
+                        show("Local current number " + currentNumber);
+                        out.writeLong(currentNumber);
+                        out.flush();
+                        remoteCurrentNumber = in.readLong();
+                        show("Remote current number received " + remoteCurrentNumber);
                     }
             }
 
