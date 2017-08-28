@@ -1,6 +1,5 @@
 package de.tu_darmstadt;
 
-import static de.tu_darmstadt.Parameters.*;
 import com.j256.ormlite.dao.DaoManager;
 import com.j256.ormlite.jdbc.JdbcConnectionSource;
 import com.j256.ormlite.stmt.PreparedQuery;
@@ -8,12 +7,15 @@ import com.j256.ormlite.stmt.QueryBuilder;
 import com.j256.ormlite.stmt.SelectArg;
 import com.j256.ormlite.support.ConnectionSource;
 import com.j256.ormlite.table.TableUtils;
+
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.sql.*;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.Semaphore;
+
+import static de.tu_darmstadt.Parameters.*;
 
 /**
  * Created by Stathis on 6/19/17.
@@ -29,7 +31,8 @@ public class Database {
     public static void initiateDb() {
         ConnectionSource connectionSource = null;
         try{
-            String databaseUrl = "jdbc:sqlite:shares.db";
+            new File(SERVER_NAME + "/").mkdir();
+            String databaseUrl = "jdbc:sqlite:" + SERVER_NAME + "/shares.db";
             // create a connection source to the database
             connectionSource = new JdbcConnectionSource(databaseUrl);
 
@@ -39,7 +42,7 @@ public class Database {
             manyToManyDao = DaoManager.createDao(connectionSource, ManyToMany.class);
             pedersenParametersDao = DaoManager.createDao(connectionSource, PedersenParameters.class);
 
-            if (!new File("shares.db").isFile()) {
+            if (!new File(SERVER_NAME + "/shares.db").isFile()) {
                 TableUtils.createTable(connectionSource, ShareHolder.class);
                 TableUtils.createTable(connectionSource, Share.class);
                 TableUtils.createTable(connectionSource, PedersenParameters.class);
@@ -69,7 +72,6 @@ public class Database {
                 System.out.println(ex.getMessage());
             }
         }
-
     }
 
     public static BigInteger lookupXvalueForShareHolderAndShare(ShareHolder shareHolder, Share share) throws SQLException{

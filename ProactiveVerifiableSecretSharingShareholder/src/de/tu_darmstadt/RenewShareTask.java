@@ -3,8 +3,6 @@ package de.tu_darmstadt;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -151,7 +149,6 @@ public class RenewShareTask extends Thread{
 
                         for (ShareHolder shareholder: shareHolderList){
                             newNumber = newNumber.add(localNumberMap.get(shareholder.getName())[k]);
-                            if (k==0) show (newNumber);
                         }
                         newNumber = newNumber.mod(MODULUS);
                         destinationFile.write(fixLength(newNumber.toByteArray(), SHARE_SIZE));

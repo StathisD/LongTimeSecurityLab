@@ -13,6 +13,7 @@ public final class Parameters {
     public static int SERVER_NR;
     public static String SERVER_NAME;
     public static  String SHARE_DIR;
+    public static String LOCAL_DIR;
     // Encryption Parameters
     public static BigInteger MODULUS;
     public static int BUFFER_SIZE;

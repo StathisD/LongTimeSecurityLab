@@ -4,9 +4,7 @@ package de.tu_darmstadt;
  * Created by stathis on 6/8/17.
  */
 
-import javax.net.SocketFactory;
-import javax.net.ssl.SSLSocketFactory;
-import java.io.IOException;
+import javax.net.ssl.*;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.math.BigInteger;
@@ -18,7 +16,7 @@ import java.util.logging.Logger;
 import static de.tu_darmstadt.Parameters.*;
 
 public class SSLClient extends SSLConnection implements Runnable{
-    private static /*SSL*/SocketFactory sslSocketFactory;
+    private static SSLSocketFactory sslSocketFactory;
 
     private ShareHolder shareHolder;
     private Share share;
@@ -31,9 +29,9 @@ public class SSLClient extends SSLConnection implements Runnable{
 
     static ExecutorService prepareConnections() {
         try {
-            //System.setProperty("javax.net.ssl.trustStore", "/media/stathis/9AEA2384EA235BAF/"+ SERVER_NAME + "/" + SERVER_NAME + "_keystore.jks");
-            //System.setProperty("javax.net.ssl.trustStorePassword", "123456");
-            sslSocketFactory = /*(SSLSocketFactory) SSL*/SocketFactory.getDefault();
+            System.setProperty("javax.net.ssl.trustStore", LOCAL_DIR + SERVER_NAME + "/" + SERVER_NAME + "_keystore.jks");
+            System.setProperty("javax.net.ssl.trustStorePassword", "123456");
+            sslSocketFactory = SSLContext.getDefault().getSocketFactory();
             ExecutorService pool = Executors.newCachedThreadPool();
             return pool;
         } catch (Exception e) {
@@ -45,8 +43,11 @@ public class SSLClient extends SSLConnection implements Runnable{
     @Override
     public void run() {
         try{
-            socket = sslSocketFactory.createSocket(shareHolder.getIpAddress(), shareHolder.getPort());
-
+            socket = (SSLSocket) sslSocketFactory.createSocket(shareHolder.getIpAddress(), shareHolder.getPort());
+            String[] suites = socket.getSupportedCipherSuites();
+            socket.setEnabledCipherSuites(suites);
+            socket.addHandshakeCompletedListener(new MyHandshakeListener());
+            socket.startHandshake();
             out = new ObjectOutputStream(socket.getOutputStream());
             in = new ObjectInputStream(socket.getInputStream());
 
@@ -98,6 +99,11 @@ public class SSLClient extends SSLConnection implements Runnable{
             Logger.getLogger(SSLClient.class.getName());
         }
     }
+}
 
-
+class MyHandshakeListener implements HandshakeCompletedListener {
+    public void handshakeCompleted(HandshakeCompletedEvent e) {
+        System.out.println("Handshake successful!");
+        System.out.println("Using cipher suite: " + e.getCipherSuite());
+    }
 }

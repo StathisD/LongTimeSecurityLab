@@ -5,10 +5,10 @@ package de.tu_darmstadt;
  */
 
 import javax.net.SocketFactory;
+import javax.net.ssl.*;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.math.BigInteger;
-import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -18,13 +18,13 @@ import java.util.logging.Logger;
 import static de.tu_darmstadt.Parameters.*;
 
 public class SSLClient implements Runnable{
-    private static /*SSL*/ SocketFactory sslSocketFactory;
+    private static SSLSocketFactory sslSocketFactory;
     public final LinkedBlockingQueue<BigInteger[]> numberQueue = new LinkedBlockingQueue<>();
     public final LinkedBlockingQueue<byte[]> byteQueue = new LinkedBlockingQueue<>();
     int xValue;
     private ShareHolder shareHolder;
     private int mode;
-    private Socket socket;
+    private SSLSocket socket;
     private ObjectOutputStream out;
     private ObjectInputStream in;
     public String status;
@@ -37,9 +37,9 @@ public class SSLClient implements Runnable{
 
     static ExecutorService openNewConnections(int mode) {
         try {
-            //System.setProperty("javax.net.ssl.trustStore", "/media/stathis/9AEA2384EA235BAF/Client_keystore.jks");
-            //System.setProperty("javax.net.ssl.trustStorePassword", "123456");
-            sslSocketFactory = /*(SSLSocketFactory) SSL*/SocketFactory.getDefault();
+            System.setProperty("javax.net.ssl.trustStore", "Client_keystore.jks");
+            System.setProperty("javax.net.ssl.trustStorePassword", "123456");
+            sslSocketFactory = SSLContext.getDefault().getSocketFactory();
             ExecutorService pool = Executors.newCachedThreadPool();
             int numberThreads;
             switch (mode){
@@ -65,7 +65,11 @@ public class SSLClient implements Runnable{
     @Override
     public void run() {
         try{
-            socket = sslSocketFactory.createSocket("localhost", shareHolder.getPort());
+            socket = (SSLSocket) sslSocketFactory.createSocket("localhost", shareHolder.getPort());
+            String[] suites = socket.getSupportedCipherSuites();
+            socket.setEnabledCipherSuites(suites);
+            socket.addHandshakeCompletedListener(new MyHandshakeListener());
+            socket.startHandshake();
             out = new ObjectOutputStream(socket.getOutputStream());
             in = new ObjectInputStream(socket.getInputStream());
             out.writeInt(mode);
@@ -190,6 +194,11 @@ public class SSLClient implements Runnable{
             status = "unsuccessful";
         }
     }
+}
 
-
+class MyHandshakeListener implements HandshakeCompletedListener {
+    public void handshakeCompleted(HandshakeCompletedEvent e) {
+        System.out.println("Handshake successful!");
+        System.out.println("Using cipher suite: " + e.getCipherSuite());
+    }
 }

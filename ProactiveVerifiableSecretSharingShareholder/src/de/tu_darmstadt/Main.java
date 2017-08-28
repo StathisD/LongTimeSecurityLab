@@ -1,12 +1,12 @@
 package de.tu_darmstadt;
 
-import java.io.File;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 
-import static de.tu_darmstadt.Database.lookupShareHoldersForShare;
-import static de.tu_darmstadt.Database.lookupXvalueForShareHolderAndShare;
 import static de.tu_darmstadt.Parameters.*;
 
 
@@ -22,6 +22,7 @@ public class Main {
                 ports = new int[]{8001+(serverNr-1)*10, 8002+(serverNr-1)*10, 8003+(serverNr-1)*10, 8004+(serverNr-1)*10, 8005+(serverNr-1)*10, 8006+(serverNr-1)*10, 8007+(serverNr-1)*10, 8008+(serverNr-1)*10, 8009+(serverNr-1)*10, 8010+(serverNr-1)*10};
                 SERVER_NAME = "Server" + args[1];
                 SHARE_DIR = args[0] + SERVER_NAME+"/";
+                LOCAL_DIR = args[0];
             }else{
                 show("Server Number must be between 1 and 10");
                 return;

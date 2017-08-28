@@ -32,9 +32,9 @@ public class RenewShareThread extends Thread {
                                 dbSemaphore.release();
 
                                 //copmpute backoff, max 10 min
-                                long backoffTime = (long) (new Random().nextFloat() * (1000 * 60 * 10));
+                                long backoffTime = (long) (new Random().nextFloat() * (1000 * 60));
                                 show(backoffTime);
-                                //Thread.sleep(backoffTime);
+                                Thread.sleep(backoffTime);
                                 dbSemaphore.acquire();
                                 share = sharesDao.queryForId(share.getName());
                                 dbSemaphore.release();

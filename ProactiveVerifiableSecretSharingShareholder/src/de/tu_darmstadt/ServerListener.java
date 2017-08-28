@@ -6,13 +6,15 @@ package de.tu_darmstadt;
 
 import com.j256.ormlite.dao.CloseableIterator;
 
-import javax.net.ServerSocketFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSocket;
 import java.io.File;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.RandomAccessFile;
 import java.math.BigInteger;
-import java.net.ServerSocket;
 import java.util.Random;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -24,7 +26,7 @@ import static de.tu_darmstadt.Parameters.*;
 public class ServerListener extends SSLConnection implements Runnable{
 
     static ExecutorService pool;
-    private static /*SSL*/ServerSocketFactory sslServerSocketFactory;
+    private static SSLServerSocketFactory sslServerSocketFactory;
     public final LinkedBlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
     private int port;
     int xValue;
@@ -34,25 +36,35 @@ public class ServerListener extends SSLConnection implements Runnable{
     }
 
     static void startListeningForConnections() {
-        //System.setProperty("javax.net.ssl.keyStore", "/media/stathis/9AEA2384EA235BAF/"+ SERVER_NAME + "/" + SERVER_NAME + "_keystore.jks");
-        //System.setProperty("javax.net.ssl.keyStorePassword", "123456");
-        sslServerSocketFactory = /*(SSLServerSocketFactory) SSL*/ServerSocketFactory.getDefault();
-        pool = Executors.newCachedThreadPool();
-        for (int port : ports) {
-            ServerListener serverListener = new ServerListener(port);
-            pool.submit(serverListener);
+        try {
+            System.setProperty("javax.net.ssl.keyStore", LOCAL_DIR + SERVER_NAME + "/" + SERVER_NAME + "_keystore.jks");
+            System.setProperty("javax.net.ssl.keyStorePassword", "123456");
+            System.setProperty("javax.net.ssl.trustStore", LOCAL_DIR + SERVER_NAME + "/" + SERVER_NAME + "_keystore.jks");
+            System.setProperty("javax.net.ssl.trustStorePassword", "123456");
+            sslServerSocketFactory = SSLContext.getDefault().getServerSocketFactory();
+            pool = Executors.newCachedThreadPool();
+            for (int port : ports) {
+                ServerListener serverListener = new ServerListener(port);
+                pool.submit(serverListener);
+            }
+            pool.shutdown();
+        } catch (Exception e) {
+            Logger.getLogger(ServerListener.class.getName())
+                    .log(Level.SEVERE, null, e);
         }
-        pool.shutdown();
     }
 
     @Override
     public void run() {
         try{
-            ServerSocket sslServerSocket = sslServerSocketFactory.createServerSocket(port);
+            SSLServerSocket sslServerSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(port);
+            String[] suites = sslServerSocket.getSupportedCipherSuites();
+            sslServerSocket.setEnabledCipherSuites(suites);
+
             show("SSL ServerSocket started with: " +sslServerSocket.toString() +"\n" +"Waiting for incoming transmissions");
 
             while(true){
-                socket = sslServerSocket.accept();
+                socket = (SSLSocket) sslServerSocket.accept();
                 show("ServerSocket accepted on port: " + port);
                 out = new ObjectOutputStream(socket.getOutputStream());
                 in = new ObjectInputStream(socket.getInputStream());
@@ -93,7 +105,6 @@ public class ServerListener extends SSLConnection implements Runnable{
     private void receiveShare(){
         try{
             long numbersReceived = 0;
-
             String fileName = (String) in.readObject();
 
             long shareFileSize = in.readLong();
