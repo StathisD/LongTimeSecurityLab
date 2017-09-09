@@ -23,7 +23,6 @@ public final class Parameters {
     public static int MOD_SIZE;
     public static boolean VERIFIABILITY;
     public static PedersenParameters pedersenParameters;
-    // Read/Write Parameters
     public static Dao<ShareHolder, String> shareholdersDao;
     public static Dao<StoredFile, String> storedFileDao;
     public static Dao<ManyToMany, String> manyToManyDao;
@@ -31,7 +30,7 @@ public final class Parameters {
     public static Semaphore dbSemaphore;
     public static int THREADS;
     public static long SHARES_FILE_SIZE;
-    public static int MAX_BUFFER_SIZE = 1024 * 1024 * 1; // 100 for Encryption
+    public static int MAX_BUFFER_SIZE = 1024 * 1024 * 10; // default value, can be adjusted
     static int MOD_LENGTH; // in bits, must be power of 2 or = 0 mod 8
     static PedersenCommitter committer;
     static ShareHolder[] shareHolders;
@@ -58,6 +57,7 @@ public final class Parameters {
             fileSize = SHARES_FILE_SIZE;
         }
 
+        // BUFFER SIZE is adjusted to fit an exact number of BigIntegers
         BUFFER_SIZE = (int) Math.min(Math.ceil(fileSize / THREADS), MAX_BUFFER_SIZE);
         BUFFER_SIZE = BUFFER_SIZE - BUFFER_SIZE % numberSize;
 

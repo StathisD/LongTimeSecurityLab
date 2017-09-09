@@ -22,12 +22,20 @@ public class Main {
 
     public static void main(String[] args) {
         try {
+            // store file path
             FILE_PATH = args[0];
+
+            // store file pseudonym
             FILE_NAME = args[1];
+
+            // initialize number of Shareholders and needed shares for reconstruction
             SHAREHOLDERS = Integer.parseInt(args[2]);
             NEEDED_SHARES = Integer.parseInt(args[3]);
+
+            // initialize the Database objects
             initiateDb();
 
+            // initialize the Pedersen Parameters for Verification
             dbSemaphore.acquire();
             PedersenParameters params = pedersenParametersDao.queryForId("params");
             dbSemaphore.release();
@@ -35,17 +43,19 @@ public class Main {
             MODULUS = params.getQ();
             pedersenParameters = params;
 
+            // Read mode of operation
             int input;
             do {
                 show("Please specify what you want to do:");
                 show("(Type 1 for sharing a new file)");
                 show("(Type 2 for decrypting a File)");
-                show("(Type 3 to add a new ShareHolder)");
                 input = scanner.nextInt();
             } while (input <= 0 || input > 3);
 
+            // Start time measuring
             Timestamp start = new Timestamp(System.currentTimeMillis());
 
+            // Execute operation
             switch (input) {
                 case 1:
                     encryptFile(input);
@@ -53,11 +63,9 @@ public class Main {
                 case 2:
                     decryptFile(input);
                     break;
-                case 3:
-                    addShareHolder();
-                    break;
             }
 
+            // End time measuring and display results
             Timestamp end = new Timestamp(System.currentTimeMillis());
             show(end.getTime() - start.getTime());
         } catch (Exception e) {
@@ -68,15 +76,21 @@ public class Main {
 
     private static void encryptFile(int mode) {
         try {
+            // open file
             RandomAccessFile sourceFile = new RandomAccessFile(FILE_PATH, "r");
             sourceFile.seek(0L);
             long targetFileSize = sourceFile.length();
+
+            // optional Verifiability (disabled by default)
             boolean verifiability = false;
 
+            // Compute chunk and buffer sizes based on fileSize
             initializeParameters(targetFileSize, 0, verifiability);
 
+            // create new stored Object for the file that will be shared
             StoredFile storedFile = new StoredFile(FILE_NAME, FILE_PATH, MODULUS, SHAREHOLDERS, NEEDED_SHARES, targetFileSize);
 
+            // choose the first n Servers from the DB as Shareholders
             dbSemaphore.acquire();
 
             CloseableIterator<ShareHolder> iterator = shareholdersDao.closeableIterator();
@@ -95,13 +109,15 @@ public class Main {
             }
             dbSemaphore.release();
 
-
+            // initialize TLS connections
             ExecutorService socketPool = SSLClient.openNewConnections(mode);
 
+            // assign the x Values to the Shareholders
             for (int i = 0; i<SHAREHOLDERS; i++){
                 sslClients[i].xValue = i + 1;
             }
 
+            // create Threads, read file in BUFFER_SIZE chunks and pass chunks to threads
             ExecutorService pool = Executors.newFixedThreadPool(THREADS);
             long encrypted = 0;
             long processed = 0;
@@ -131,6 +147,7 @@ public class Main {
                     }
                 }
 
+                // retrieve thread output and pass it on to TLS socket
                 for (int i = 0; i <= numberOfThreads; i++) {
                     BigInteger[][] taskBuffer = (BigInteger[][]) futures[i].get();
                     encrypted += taskBuffer[0].length;
@@ -140,6 +157,7 @@ public class Main {
                     }
                 }
             }
+
             int numbersInFile = (int) Math.ceil(TARGET_FILE_SIZE * 1.0 / BLOCK_SIZE);
             if (VERIFIABILITY) numbersInFile = numbersInFile * (NEEDED_SHARES + 2);
 
@@ -148,12 +166,15 @@ public class Main {
             pool.awaitTermination(10, TimeUnit.MINUTES);
             socketPool.awaitTermination(10, TimeUnit.MINUTES);
 
+            // check the success of the whole transfer
             boolean success = true;
             for (int i = 0; i < SHAREHOLDERS; i++) {
                 if (!sslClients[i].status.equals("successful")) {
                     success = false;
                 }
             }
+
+            // delete initial file if everything successful and add DB dataset
             if (encrypted == numbersInFile && success) {
                 show("File Storing completed successfully");
                 new File(FILE_PATH).delete();
@@ -263,20 +284,6 @@ public class Main {
 
         } catch (Exception ex) {
             ex.printStackTrace();
-        }
-
-    }
-
-    private static void addShareHolder(){
-        try{
-            dbSemaphore.acquire();
-            ShareHolder shareHolder = new ShareHolder("Server" + 0, "localhost", 8000);
-            shareholdersDao.createIfNotExists(shareHolder);
-
-            dbSemaphore.release();
-
-        }catch(Exception e){
-            e.printStackTrace();
         }
 
     }

@@ -31,8 +31,8 @@ public class Database {
     public static void initiateDb() {
         ConnectionSource connectionSource = null;
         try{
-            new File(SERVER_NAME + "/").mkdir();
-            String databaseUrl = "jdbc:sqlite:" + SERVER_NAME + "/shares.db";
+            new File(LOCAL_DIR + SERVER_NAME + "/").mkdir();
+            String databaseUrl = "jdbc:sqlite:" + LOCAL_DIR + SERVER_NAME + "/shares.db";
             // create a connection source to the database
             connectionSource = new JdbcConnectionSource(databaseUrl);
 
@@ -42,7 +42,7 @@ public class Database {
             manyToManyDao = DaoManager.createDao(connectionSource, ManyToMany.class);
             pedersenParametersDao = DaoManager.createDao(connectionSource, PedersenParameters.class);
 
-            if (!new File(SERVER_NAME + "/shares.db").isFile()) {
+            if (!new File(LOCAL_DIR + SERVER_NAME + "/shares.db").isFile()) {
                 TableUtils.createTable(connectionSource, ShareHolder.class);
                 TableUtils.createTable(connectionSource, Share.class);
                 TableUtils.createTable(connectionSource, PedersenParameters.class);

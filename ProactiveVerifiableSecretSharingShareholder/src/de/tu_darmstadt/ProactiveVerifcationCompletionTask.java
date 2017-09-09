@@ -24,7 +24,7 @@ public class ProactiveVerifcationCompletionTask implements Callable<BigInteger[]
     public BigInteger[] call() {
 
         try {
-
+            // Verify each received Number and remove verification data from the buffer
             BigInteger[] numbers = new BigInteger[buffer.length / (neededShares + 2)];
             int j = 0;
             for (int i = 0; i < buffer.length; i = i + (neededShares + 2)) {

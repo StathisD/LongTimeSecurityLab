@@ -29,6 +29,7 @@ public class SSLClient extends SSLConnection implements Runnable{
 
     static ExecutorService prepareConnections() {
         try {
+            // set certificate keystores
             System.setProperty("javax.net.ssl.trustStore", LOCAL_DIR + SERVER_NAME + "/" + SERVER_NAME + "_keystore.jks");
             System.setProperty("javax.net.ssl.trustStorePassword", "123456");
             sslSocketFactory = SSLContext.getDefault().getSocketFactory();
@@ -43,6 +44,7 @@ public class SSLClient extends SSLConnection implements Runnable{
     @Override
     public void run() {
         try{
+            // create SSL Socket
             socket = (SSLSocket) sslSocketFactory.createSocket(shareHolder.getIpAddress(), shareHolder.getPort());
             String[] suites = socket.getSupportedCipherSuites();
             socket.setEnabledCipherSuites(suites);

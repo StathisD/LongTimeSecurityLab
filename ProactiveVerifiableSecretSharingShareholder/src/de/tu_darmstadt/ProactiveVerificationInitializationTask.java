@@ -16,8 +16,8 @@ public class ProactiveVerificationInitializationTask implements Callable {
     private Share share;
     private List<ShareHolder> shareHolderList;
 
-    public ProactiveVerificationInitializationTask(int numbersInbuffer, Share share, List<ShareHolder> shareHolderList) {
-        this.numbersInBuffer = numbersInbuffer;
+    public ProactiveVerificationInitializationTask(int numbersInBuffer, Share share, List<ShareHolder> shareHolderList) {
+        this.numbersInBuffer = numbersInBuffer;
         this.share = share;
         this.shareHolderList = shareHolderList;
     }
@@ -31,6 +31,7 @@ public class ProactiveVerificationInitializationTask implements Callable {
                 remoteNumbers = new BigInteger[shareHolderList.size()][numbersInBuffer];
             }
 
+            // for each number in buffer calculate the new numbers for the shareholders
             for (int k = 0; k < numbersInBuffer; k++) {
                 BigIntegerPolynomial currentPolynomial = new BigIntegerPolynomial(share.getNeededShares() - 1, MODULUS, BigInteger.ZERO);
                 int j = 0;
@@ -38,6 +39,8 @@ public class ProactiveVerificationInitializationTask implements Callable {
                     List<BigInteger> list = new ArrayList<BigInteger>();
                     BigInteger yValue = currentPolynomial.evaluatePolynom(shareholder.getxValue());
                     list.add(yValue);
+
+                    // add verifiability
                     if (VERIFIABILITY && !shareholder.getName().equals(SERVER_NAME)) {
                         BigInteger shareCommitment = currentPolynomial.G.evaluatePolynom(shareholder.getxValue());
                         list.add(shareCommitment);

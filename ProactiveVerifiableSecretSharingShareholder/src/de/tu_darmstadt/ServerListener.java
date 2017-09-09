@@ -37,11 +37,13 @@ public class ServerListener extends SSLConnection implements Runnable{
 
     static void startListeningForConnections() {
         try {
+            // set certificate keystores
             System.setProperty("javax.net.ssl.keyStore", LOCAL_DIR + SERVER_NAME + "/" + SERVER_NAME + "_keystore.jks");
             System.setProperty("javax.net.ssl.keyStorePassword", "123456");
             System.setProperty("javax.net.ssl.trustStore", LOCAL_DIR + SERVER_NAME + "/" + SERVER_NAME + "_keystore.jks");
             System.setProperty("javax.net.ssl.trustStorePassword", "123456");
             sslServerSocketFactory = SSLContext.getDefault().getServerSocketFactory();
+            // create Threads for each Server port
             pool = Executors.newCachedThreadPool();
             for (int port : ports) {
                 ServerListener serverListener = new ServerListener(port);
@@ -57,6 +59,7 @@ public class ServerListener extends SSLConnection implements Runnable{
     @Override
     public void run() {
         try{
+            // create server socket
             SSLServerSocket sslServerSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket(port);
             String[] suites = sslServerSocket.getSupportedCipherSuites();
             sslServerSocket.setEnabledCipherSuites(suites);
@@ -81,7 +84,7 @@ public class ServerListener extends SSLConnection implements Runnable{
                         sendShare();
                         break;
                     case 3:
-                        //Decryption
+                        //Delete unneeded shares
                         deleteShare();
                         break;
                     case 4:
@@ -93,9 +96,6 @@ public class ServerListener extends SSLConnection implements Runnable{
                 socket.close();
             }
 
-            //sslServerSocket.close();
-
-            //show("SeverSocket closed on port: " + port);
         }catch(Exception e){
             Logger.getLogger(ServerListener.class.getName())
                     .log(Level.SEVERE, null, e);
@@ -104,6 +104,7 @@ public class ServerListener extends SSLConnection implements Runnable{
 
     private void receiveShare(){
         try{
+            // receive parameters
             long numbersReceived = 0;
             String fileName = (String) in.readObject();
 
@@ -139,11 +140,13 @@ public class ServerListener extends SSLConnection implements Runnable{
             sharesDao.createIfNotExists(share);
             dbSemaphore.release();
 
+            // create new share file
             RandomAccessFile shareFile = new RandomAccessFile(SHARE_DIR + fileName, "rw");
             shareFile.seek(0L);
 
             boolean  verified = true;
 
+            // receive share
             if (VERIFIABILITY){
                 //verify
                 numbersInFile = numbersInFile * (neededShares + 2);
@@ -160,6 +163,7 @@ public class ServerListener extends SSLConnection implements Runnable{
 
                         int numbers = buffer.length / (neededShares + 2);
 
+                        // start verification tasks
                         VerificationTask task = new VerificationTask(neededShares, fileName, xValue, buffer, destStartingByte);
                         futures[i] = pool.submit(task);
                         destStartingByte += numbers * SHARE_SIZE;
@@ -223,6 +227,7 @@ public class ServerListener extends SSLConnection implements Runnable{
 
             long dataSent = 0;
 
+            // send share
             while (dataSent < shareFileSize) {
                 int bufferSize = (int) Math.min(BUFFER_SIZE, shareFileSize-dataSent);
                 byte[] buffer = new byte[bufferSize];

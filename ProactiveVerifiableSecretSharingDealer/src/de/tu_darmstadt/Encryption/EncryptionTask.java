@@ -37,7 +37,9 @@ public class EncryptionTask implements Callable<BigInteger[][]> {
 
         int currentPos = 0;
         byte[] oneNumber;
+        // for each number in Buffer
         for (int i = 0; i < numbersInBuffer; i++) {
+            // form Number from Bytes
             if ((i + 1) * BLOCK_SIZE <= buffer.length) {
                 oneNumber = Arrays.copyOfRange(buffer, i * BLOCK_SIZE, (i + 1) * BLOCK_SIZE);
             } else {
@@ -46,9 +48,10 @@ public class EncryptionTask implements Callable<BigInteger[][]> {
 
             BigInteger number = new BigInteger(1, oneNumber);
 
-            //encrypt
+            //encrypt Number
             BigIntegerPolynomial polynomial = new BigIntegerPolynomial(NEEDED_SHARES - 1, MODULUS, number);
 
+            // create shares
             for (int x = 0; x < SHAREHOLDERS; x++) {
 
                 List<BigInteger> list = new ArrayList<BigInteger>();

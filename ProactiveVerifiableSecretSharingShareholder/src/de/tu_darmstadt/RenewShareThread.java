@@ -16,30 +16,36 @@ public class RenewShareThread extends Thread {
     public void run(){
         try{
             while(true){
+                // check if renewal in Process
                 if (!RenewShareTask.active){
+                    // find all stored shares
                     dbSemaphore.acquire();
                     CloseableIterator<Share> iterator = sharesDao.closeableIterator();
                     dbSemaphore.release();
                     try {
+                        // iterate over shares and check if they must be renewed
                         while (iterator.hasNext()) {
                             dbSemaphore.acquire();
                             Share share = iterator.next();
                             dbSemaphore.release();
-                            if (Math.abs(share.getLastRenewed() - System.currentTimeMillis()) >= (1000 * 60 * 60 * 24) && !share.getRenewStatus().equals("in progress")) {
+                            // default RENEWAL_INTERVAL = 1 day
+                            if (Math.abs(share.getLastRenewed() - System.currentTimeMillis()) >= (RENEWAL_INTERVAL) && !share.getRenewStatus().equals("in progress")) {
                                 share.setRenewStatus("needs renewal");
                                 dbSemaphore.acquire();
                                 sharesDao.update(share);
                                 dbSemaphore.release();
 
-                                //copmpute backoff, max 10 min
-                                long backoffTime = (long) (new Random().nextFloat() * (1000 * 60));
+                                //compute backoff, max 1 min
+                                long backoffTime = (long) (new Random().nextFloat() * (1000 * 60 * 5));
                                 show(backoffTime);
                                 Thread.sleep(backoffTime);
+                                // check if share still exists after sleep
                                 dbSemaphore.acquire();
                                 share = sharesDao.queryForId(share.getName());
                                 dbSemaphore.release();
                                 if ( share != null){
                                     if (!RenewShareTask.active && share.getRenewStatus().equals("needs renewal")) {
+                                        // start renewal
                                         new RenewShareTask(share).start();
                                     }
                                 }

@@ -30,8 +30,6 @@ public class RenewShareTask extends Thread{
 
     public static boolean verificationSuccess = true;
 
-    public static int N = 8000;
-
     private Share share;
 
     public RenewShareTask(Share share){
@@ -39,6 +37,7 @@ public class RenewShareTask extends Thread{
     }
 
     public void run(){
+        // check share status and update it
         try{
             if (share.getRenewStatus().equals("needs renewal")){
                 active = true;
@@ -48,15 +47,18 @@ public class RenewShareTask extends Thread{
                 dbSemaphore.release();
             }else return;
 
+            // initialize TLS sockets
             ExecutorService connectionPool = SSLClient.prepareConnections();
 
             dbSemaphore.acquire();
+            // find other Shareholders of share
             List<ShareHolder> shareHolderList = lookupShareHoldersForShare(share);
 
             for (ShareHolder shareholder: shareHolderList) {
-
+                // their x Values
                 shareholder.setxValue(lookupXvalueForShareHolderAndShare(shareholder,share));
 
+                // initialize communication with them
                 if (!sslConnectionMap.containsKey(shareholder.getName())){
                     SSLClient sslClient = new SSLClient(shareholder, share);
                     sslConnectionMap.put(shareholder.getName(), sslClient);
@@ -65,17 +67,20 @@ public class RenewShareTask extends Thread{
             }
             dbSemaphore.release();
 
+            // add own data to the list
             ShareHolder localShareholder = new ShareHolder(SERVER_NAME,"localhost",0);
             localShareholder.setxValue(BigInteger.valueOf(share.getxValue()));
             shareHolderList.add(localShareholder);
 
+            // open share file
             RandomAccessFile sourceFile = new RandomAccessFile(SHARE_DIR + share.getName(), "r");
             RandomAccessFile destinationFile = new RandomAccessFile(SHARE_DIR + share.getName()+"_new", "rw");
             sourceFile.seek(0L);
             destinationFile.seek(0L);
             long targetFileSize = sourceFile.length();
 
-            initializeParameters(targetFileSize, 0, true);
+            // verifiability disabled per default
+            initializeParameters(targetFileSize, 0, false);
 
             long numbersInShare = targetFileSize / SHARE_SIZE;
 
@@ -88,6 +93,8 @@ public class RenewShareTask extends Thread{
             int numberOfThreads = 0;
             long[] currentNumbers = new long[THREADS];
 
+            // proccess file in Threads and chunks, same principle as with Dealer program
+            // create local data
             while(numbersRenewed < numbersInShare) {
 
                 int numbersInBuffer = 0;
@@ -105,6 +112,7 @@ public class RenewShareTask extends Thread{
                     if (numbersRenewed >= numbersInShare) break;
                 }
 
+                // send local data to other Shareholders and gather their data
                 for (int i = 0; i <= numberOfThreads; i++) {
                     remoteNumberMap = new HashMap<>();
                     localNumberMap = new HashMap<>();
@@ -121,9 +129,13 @@ public class RenewShareTask extends Thread{
                         }
                         j++;
                     }
+
+                    // wait until all necessary data is gathered
                     while (localNumberMap.size() != share.getNumberOfShareholders()){
                         Thread.sleep(1000);
                     }
+
+                    // check verification status
                     if(VERIFIABILITY && !verificationSuccess){
                         show("Error in Verification");
                         share.setRenewStatus("needs renewal");
@@ -140,6 +152,7 @@ public class RenewShareTask extends Thread{
                         return;
                     }
 
+                    // create new share
                     byte[] buffer = new byte[numbersInBuffer*SHARE_SIZE];
                     sourceFile.readFully(buffer);
                     byte[] numberBytes = new byte[SHARE_SIZE];
@@ -156,15 +169,19 @@ public class RenewShareTask extends Thread{
                 }
             }
 
+            // shutdown sockets
             for (ShareHolder shareholder: shareHolderList) {
                 if (!shareholder.getName().equals(SERVER_NAME)){
                     sslConnectionMap.get(shareholder.getName()).numberQueue.put(-1L);
                 }
             }
 
+            // delete old share
             new File(SHARE_DIR + share.getName()).delete();
             new File(SHARE_DIR + share.getName()+"_new").renameTo(new File(SHARE_DIR + share.getName()));
 
+
+            // update status and last Renewed date
             share.setRenewStatus("renewed");
             share.setLastRenewed(System.currentTimeMillis());
             dbSemaphore.acquire();

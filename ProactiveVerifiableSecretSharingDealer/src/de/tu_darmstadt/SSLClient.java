@@ -4,7 +4,6 @@ package de.tu_darmstadt;
  * Created by stathis on 6/8/17.
  */
 
-import javax.net.SocketFactory;
 import javax.net.ssl.*;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -37,14 +36,16 @@ public class SSLClient implements Runnable{
 
     static ExecutorService openNewConnections(int mode) {
         try {
+            // set certificate keystores
             System.setProperty("javax.net.ssl.trustStore", "Client_keystore.jks");
             System.setProperty("javax.net.ssl.trustStorePassword", "123456");
+
             sslSocketFactory = SSLContext.getDefault().getSocketFactory();
             ExecutorService pool = Executors.newCachedThreadPool();
             int numberThreads;
             switch (mode){
                 case 1:
-                    //Encryption
+                    //Encryption, create sslClient Threads for each Shareholder
                     numberThreads = SHAREHOLDERS;
                     sslClients = new SSLClient[numberThreads];
                     for (int i = 0; i < numberThreads; i++) {
@@ -65,6 +66,7 @@ public class SSLClient implements Runnable{
     @Override
     public void run() {
         try{
+            // create SSL Socket
             socket = (SSLSocket) sslSocketFactory.createSocket("localhost", shareHolder.getPort());
             String[] suites = socket.getSupportedCipherSuites();
             socket.setEnabledCipherSuites(suites);
@@ -86,7 +88,7 @@ public class SSLClient implements Runnable{
                     receiveShares();
                     break;
                 case 3:
-                    //Decryption
+                    // Delete unneeded shares
                     deleteShare();
                     break;
             }
@@ -99,6 +101,7 @@ public class SSLClient implements Runnable{
 
     private void sendShares(){
         try{
+            // send Parameters
             long numbersSent = 0;
             while (xValue == 0){
                 Thread.sleep(100);
@@ -122,10 +125,10 @@ public class SSLClient implements Runnable{
                 numbersInFile = numbersInFile*(NEEDED_SHARES+2);
             }
 
+            // send share
             while (numbersSent < numbersInFile) {
                 BigInteger[] buffer = numberQueue.poll(10, TimeUnit.MINUTES);
                 out.writeObject(buffer);
-
                 numbersSent += buffer.length;
                 out.flush();
             }
@@ -152,6 +155,7 @@ public class SSLClient implements Runnable{
 
             out.flush();
 
+            // receive share
             while (dataReceived != SHARES_FILE_SIZE) {
                 byte[] buffer = (byte[]) in.readObject();
                 //show("Socket " + (port%8000) + " received " + buffer.length + " data");

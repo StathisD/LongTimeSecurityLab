@@ -14,7 +14,6 @@ public final class Parameters {
     public static String SERVER_NAME;
     public static  String SHARE_DIR;
     public static String LOCAL_DIR;
-    // Encryption Parameters
     public static BigInteger MODULUS;
     public static int BUFFER_SIZE;
     public static int SHARE_SIZE;
@@ -29,10 +28,10 @@ public final class Parameters {
     public static Semaphore dbSemaphore;
     static int MOD_LENGTH; // in bits, must be power of 2 or = 0 mod 8
     static PedersenCommitter committer;
-    // Read/Write Parameters
     static int ports[];
     static int THREADS;
     private static int MAX_BUFFER_SIZE = 1024 * 1024 * 1;
+    static int RENEWAL_INTERVAL = 1000 * 60 * 60 * 24;
 
     static void initializeParameters(long TARGET_FILE_SIZE, int mode, boolean verifiability) {
         Parameters.VERIFIABILITY = verifiability;

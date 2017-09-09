@@ -50,10 +50,11 @@ public class DecryptionTask implements Callable<Integer> {
                     shares[j] = new BigInteger(1, oneNumber);
                 }
 
-                //decrypt
+                //decrypt number
                 BigInteger decryptedNumber = BigIntegerPolynomial.interpolate(shares, MODULUS);
                 byte[] decryptedBytes = decryptedNumber.toByteArray();
 
+                // transform to bytes
                 if (i == numbersInBuffer - 1 && lastBuffer) {
                     decryptedBytes = fixLength(decryptedBytes, sizeLastNumber);
                 } else {
